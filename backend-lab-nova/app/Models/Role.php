@@ -65,7 +65,7 @@ class Role extends Model
             ->toArray();
     }
 
-    // Private methods to obtain user module permissions, active parent modules, and build parent module data    private function getUserModulePermissions()
+    // Private methods to obtain user module permissions, active parent modules, and build parent module data
     private function getUserModulePermissions()
     {
         return $this->modulePermissions()
