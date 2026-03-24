@@ -115,7 +115,8 @@ class User extends Authenticatable
         $modules = collect($this->role?->getModulesWithInfo() ?? []);
         if ($this->isStaff()) {
 
-            $dashboard = Module::where('slug', 'dashboard')
+            $dashboard = Module::query()
+                ->where('slug', 'dashboard')
                 ->where('is_active', true)
                 ->first();
 
