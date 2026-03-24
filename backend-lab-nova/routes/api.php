@@ -4,6 +4,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\EquipmentController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -24,4 +26,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/roles/{role}', [PermissionController::class, 'getRolePermissions']);
         Route::post('/roles/{role}/assign', [PermissionController::class, 'assignPermissions']);
     });
+
+    // Categories
+    Route::apiResource('categories', CategoryController::class);
+
+    // Equipment
+    Route::apiResource('equipment', EquipmentController::class);
 });
