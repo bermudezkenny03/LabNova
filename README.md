@@ -52,6 +52,12 @@ php artisan key:generate
 # Ejecutar migraciones
 php artisan migrate
 
+# Ejecutar seeders
+php artisan db:seed
+
+# O ejecutar migraciones + seeders desde cero
+php artisan migrate:fresh --seed
+
 # Instalar dependencias frontend
 npm install
 
