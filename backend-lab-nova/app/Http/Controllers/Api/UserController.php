@@ -38,7 +38,7 @@ class UserController extends Controller
 
             $user = User::createUser($validated);
 
-            UserDetail::createUserDetail($user->id, $validated);
+            UserDetail::createUserDetail($validated, $user->id);
 
             DB::commit();
 
@@ -90,9 +90,9 @@ class UserController extends Controller
             $user->updateUser($validated);
 
             if ($user->userDetail) {
-                $user->userDetail->updateUserDetail($validated);
+                UserDetail::updateUserDetail($validated, $user);
             } else {
-                UserDetail::createUserDetail($user->id, $validated);
+                UserDetail::createUserDetail($validated, $user->id);
             }
 
             return response()->json([
