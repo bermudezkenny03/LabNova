@@ -15,7 +15,7 @@ class ReservationController extends Controller
     {
         try {
             $perPage = $request->get('per_page', 15);
-            $reservations = Reservation::with(['user', 'equipment', 'approvedBy'])
+            $reservations = Reservation::with(['user', 'equipment', 'approver'])
                 ->latest()
                 ->paginate($perPage);
 
@@ -71,7 +71,7 @@ class ReservationController extends Controller
     public function show(int $id): JsonResponse
     {
         try {
-            $reservation = Reservation::with(['user', 'equipment', 'approvedBy', 'logs'])->findOrFail($id);
+            $reservation = Reservation::with(['user', 'equipment', 'approver', 'logs'])->findOrFail($id);
 
             return response()->json(['success' => true, 'message' => 'Detalle de reserva', 'data' => $reservation]);
         } catch (ModelNotFoundException) {
