@@ -10,6 +10,7 @@ const STATUS_LABELS: Record<Reservation['status'], string> = {
   approved: 'Aprobada',
   rejected: 'Rechazada',
   cancelled: 'Cancelada',
+  completed: 'Completada',
 }
 
 const STATUS_COLORS: Record<Reservation['status'], string> = {
@@ -17,6 +18,7 @@ const STATUS_COLORS: Record<Reservation['status'], string> = {
   approved: 'bg-green-100 text-green-800',
   rejected: 'bg-red-100 text-red-800',
   cancelled: 'bg-gray-100 text-gray-600',
+  completed: 'bg-blue-100 text-blue-800',
 }
 
 interface ReservationForm {
@@ -211,7 +213,7 @@ const ReservationsPage: React.FC = () => {
 
       {/* Filtro por estado */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-wrap gap-2">
-        {(['all', 'pending', 'approved', 'rejected', 'cancelled'] as const).map((s) => (
+        {(['all', 'pending', 'approved', 'rejected', 'cancelled', 'completed'] as const).map((s) => (
           <button
             key={s}
             onClick={() => setFilterStatus(s)}

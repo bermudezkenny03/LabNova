@@ -1,38 +1,55 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+const navItems = [
+  { path: '/',             label: 'Dashboard', icon: '📊' },
+  { path: '/equipment',   label: 'Equipos',    icon: '🔬' },
+  { path: '/reservations',label: 'Reservas',   icon: '📅' },
+  { path: '/reports',     label: 'Reportes',   icon: '📄' },
+  { path: '/users',       label: 'Usuarios',   icon: '👥' },
+];
+
 const Sidebar: React.FC = () => {
   const location = useLocation();
 
-  const navItems = [
-    { path: '/', label: 'Dashboard', icon: '📊' },
-    { path: '/equipment', label: 'Equipos', icon: '⚙️' },
-    { path: '/reservations', label: 'Reservas', icon: '📅' },
-    { path: '/reports', label: 'Reportes', icon: '📄' },
-    { path: '/users', label: 'Usuarios', icon: '👥' },
-  ];
-
   return (
-    <aside className="w-64 bg-gray-800 text-white flex flex-col">
-      <div className="p-6 border-b border-gray-700">
-        <h2 className="text-xl font-bold">LabNova</h2>
+    <aside className="w-60 bg-gray-900 text-white flex flex-col shrink-0">
+      {/* Logo */}
+      <div className="flex flex-col items-center py-6 px-4 border-b border-gray-700">
+        <img
+          src="/logo.png"
+          alt="LabNova"
+          className="w-16 h-16 object-contain rounded-full bg-white p-1 shadow mb-2"
+        />
+        <span className="text-sm font-bold tracking-wide text-white">LabNova</span>
+        <span className="text-xs text-gray-400 tracking-widest">Breakthrough Solutions</span>
       </div>
-      <nav className="flex-1 p-4">
-        {navItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={`block px-4 py-3 rounded mb-2 ${
-              location.pathname === item.path
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-300 hover:bg-gray-700'
-            }`}
-          >
-            <span className="mr-2">{item.icon}</span>
-            {item.label}
-          </Link>
-        ))}
+
+      {/* Navegacion */}
+      <nav className="flex-1 px-3 py-4 space-y-1">
+        {navItems.map((item) => {
+          const active = location.pathname === item.path;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                active
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+              }`}
+            >
+              <span className="text-base">{item.icon}</span>
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
+
+      {/* Footer del sidebar */}
+      <div className="px-4 py-3 border-t border-gray-700">
+        <p className="text-xs text-gray-500 text-center">v1.0.0</p>
+      </div>
     </aside>
   );
 };

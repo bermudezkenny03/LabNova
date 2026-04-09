@@ -52,10 +52,13 @@ export interface Category {
 export interface Equipment {
   id: number
   name: string
+  code: string
   description?: string
+  stock?: number
   category_id: number
   category?: Category
-  status: 'available' | 'in_use' | 'maintenance' | 'out_of_service' | 'inactive'
+  status: 'available' | 'maintenance' | 'out_of_service'
+  is_active?: boolean
   images?: EquipmentImage[]
   created_at: string
   updated_at: string
@@ -76,7 +79,7 @@ export interface Reservation {
   equipment_id: number
   start_time: string
   end_time: string
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'completed'
   notes?: string
   approved_by?: number
   approved_at?: string

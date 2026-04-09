@@ -8,8 +8,8 @@ import { Reservation } from '../types'
 interface Stats {
   totalEquipment: number
   availableEquipment: number
-  inUseEquipment: number
   maintenanceEquipment: number
+  outOfServiceEquipment: number
   totalReservations: number
   pendingReservations: number
   approvedReservations: number
@@ -20,6 +20,7 @@ const statusColors: Record<Reservation['status'], string> = {
   approved: 'bg-green-100 text-green-800',
   rejected: 'bg-red-100 text-red-800',
   cancelled: 'bg-gray-100 text-gray-600',
+  completed: 'bg-blue-100 text-blue-800',
 }
 
 const statusLabels: Record<Reservation['status'], string> = {
@@ -27,6 +28,7 @@ const statusLabels: Record<Reservation['status'], string> = {
   approved: 'Aprobada',
   rejected: 'Rechazada',
   cancelled: 'Cancelada',
+  completed: 'Completada',
 }
 
 const StatCard: React.FC<{
@@ -55,8 +57,8 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<Stats>({
     totalEquipment: 0,
     availableEquipment: 0,
-    inUseEquipment: 0,
     maintenanceEquipment: 0,
+    outOfServiceEquipment: 0,
     totalReservations: 0,
     pendingReservations: 0,
     approvedReservations: 0,
@@ -82,8 +84,8 @@ const Dashboard: React.FC = () => {
         setStats({
           totalEquipment: equipRes.total,
           availableEquipment: equipment.filter((e) => e.status === 'available').length,
-          inUseEquipment: equipment.filter((e) => e.status === 'in_use').length,
           maintenanceEquipment: equipment.filter((e) => e.status === 'maintenance').length,
+          outOfServiceEquipment: equipment.filter((e) => e.status === 'out_of_service').length,
           totalReservations: resRes.total,
           pendingReservations: reservations.filter((r) => r.status === 'pending').length,
           approvedReservations: reservations.filter((r) => r.status === 'approved').length,
@@ -135,8 +137,8 @@ const Dashboard: React.FC = () => {
             <>
               <StatCard title="Total Equipos" value={stats.totalEquipment} color="bg-blue-100 text-blue-600" icon="🔬" to="/equipment" />
               <StatCard title="Disponibles" value={stats.availableEquipment} subtitle="Listos para reservar" color="bg-green-100 text-green-600" icon="✅" to="/equipment" />
-              <StatCard title="En Uso" value={stats.inUseEquipment} color="bg-blue-100 text-blue-500" icon="⚡" to="/equipment" />
               <StatCard title="Mantenimiento" value={stats.maintenanceEquipment} color="bg-orange-100 text-orange-600" icon="🔧" to="/equipment" />
+              <StatCard title="Fuera de servicio" value={stats.outOfServiceEquipment} color="bg-red-100 text-red-600" icon="⛔" to="/equipment" />
             </>
           )}
         </div>
