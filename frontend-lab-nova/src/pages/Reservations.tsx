@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { reservationService } from '../services/reservationService'
 import { equipmentService } from '../services/equipmentService'
 import { useAuth } from '../hooks'
+import { usePermissions } from '../hooks/usePermissions'
 import { Reservation, Equipment } from '../types'
 import { Modal } from '../components/common/Modal'
+import { ProtectedButton, IfCan } from '../components/ProtectedFeature'
 
 const STATUS_LABELS: Record<Reservation['status'], string> = {
   pending: 'Pendiente',
@@ -23,20 +25,36 @@ const STATUS_COLORS: Record<Reservation['status'], string> = {
 
 interface ReservationForm {
   equipment_id: string
-  start_time: string
-  end_time: string
+  start_date: string
+  start_hour: string
+  end_date: string
+  end_hour: string
   notes: string
 }
 
 const EMPTY_FORM: ReservationForm = {
   equipment_id: '',
-  start_time: '',
-  end_time: '',
+  start_date: '',
+  start_hour: '08:00',
+  end_date: '',
+  end_hour: '09:00',
   notes: '',
 }
 
+/** Combina date + hour en el formato ISO que espera el backend */
+const toDateTime = (date: string, hour: string) => (date && hour ? `${date}T${hour}` : '')
+
+/** Genera opciones de tiempo en intervalos de 30 min */
+const TIME_OPTIONS = Array.from({ length: 28 }, (_, i) => {
+  const totalMins = 7 * 60 + i * 30  // 07:00 → 20:30
+  const h = String(Math.floor(totalMins / 60)).padStart(2, '0')
+  const m = String(totalMins % 60).padStart(2, '0')
+  return `${h}:${m}`
+})
+
 const ReservationsPage: React.FC = () => {
   const { user } = useAuth()
+  const perms = usePermissions()
 
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
@@ -52,7 +70,10 @@ const ReservationsPage: React.FC = () => {
 
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<ReservationForm>(EMPTY_FORM)
-  const [formErrors, setFormErrors] = useState<Partial<ReservationForm>>({})
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof ReservationForm, string>>>({})
+
+  const [availabilityStatus, setAvailabilityStatus] = useState<'unknown' | 'checking' | 'available' | 'unavailable'>('unknown')
+  const availabilityTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [rejectModal, setRejectModal] = useState<{ id: number } | null>(null)
   const [rejectReason, setRejectReason] = useState('')
@@ -84,7 +105,7 @@ const ReservationsPage: React.FC = () => {
   const loadEquipment = useCallback(async () => {
     try {
       const res = await equipmentService.getAllEquipment()
-      setEquipment((res.data ?? []).filter((e) => e.status === 'available'))
+      setEquipment((res.data ?? []).filter((e) => e.status === 'available' && e.is_active !== false))
     } catch {
       // no critical
     }
@@ -95,37 +116,82 @@ const ReservationsPage: React.FC = () => {
     loadEquipment()
   }, [loadReservations, loadEquipment])
 
+  // Verificar disponibilidad automáticamente cuando equipo + fechas estén completos
+  useEffect(() => {
+    const start = toDateTime(form.start_date, form.start_hour)
+    const end = toDateTime(form.end_date, form.end_hour)
+
+    if (!form.equipment_id || !start || !end) {
+      setAvailabilityStatus('unknown')
+      return
+    }
+    if (start >= end) {
+      setAvailabilityStatus('unknown')
+      return
+    }
+
+    if (availabilityTimer.current) clearTimeout(availabilityTimer.current)
+    setAvailabilityStatus('checking')
+
+    availabilityTimer.current = setTimeout(async () => {
+      try {
+        const available = await reservationService.checkAvailability(
+          Number(form.equipment_id),
+          start,
+          end
+        )
+        setAvailabilityStatus(available ? 'available' : 'unavailable')
+      } catch {
+        setAvailabilityStatus('unknown')
+      }
+    }, 600)
+
+    return () => {
+      if (availabilityTimer.current) clearTimeout(availabilityTimer.current)
+    }
+  }, [form.equipment_id, form.start_date, form.start_hour, form.end_date, form.end_hour])
+
   const filtered = filterStatus === 'all'
     ? reservations
     : reservations.filter((r) => r.status === filterStatus)
 
   const validate = (): boolean => {
-    const errors: Partial<ReservationForm> = {}
+    const errors: Partial<Record<keyof ReservationForm, string>> = {}
+    const start = toDateTime(form.start_date, form.start_hour)
+    const end = toDateTime(form.end_date, form.end_hour)
     if (!form.equipment_id) errors.equipment_id = 'Selecciona un equipo'
-    if (!form.start_time) errors.start_time = 'La fecha de inicio es requerida'
-    if (!form.end_time) errors.end_time = 'La fecha de fin es requerida'
-    if (form.start_time && form.end_time && form.start_time >= form.end_time)
-      errors.end_time = 'La fecha de fin debe ser posterior al inicio'
+    if (!form.start_date) errors.start_date = 'La fecha de inicio es requerida'
+    if (!form.end_date) errors.end_date = 'La fecha de fin es requerida'
+    if (start && end && start >= end)
+      errors.end_date = 'La fecha/hora de fin debe ser posterior al inicio'
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
 
   const handleCreate = async () => {
     if (!validate()) return
+    if (availabilityStatus === 'unavailable') {
+      setError('El equipo no está disponible en el horario seleccionado.')
+      return
+    }
+    const start = toDateTime(form.start_date, form.start_hour)
+    const end = toDateTime(form.end_date, form.end_hour)
     try {
       setSaving(true)
       await reservationService.createReservation({
         equipment_id: Number(form.equipment_id),
-        start_time: form.start_time,
-        end_time: form.end_time,
+        start_time: start,
+        end_time: end,
         notes: form.notes || undefined,
       })
       showSuccess('Reserva creada exitosamente.')
       setShowModal(false)
       setForm(EMPTY_FORM)
+      setAvailabilityStatus('unknown')
       loadReservations(currentPage)
-    } catch {
-      setError('No se pudo crear la reserva. Verifica la disponibilidad del equipo.')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg || 'No se pudo crear la reserva.')
     } finally {
       setSaving(false)
     }
@@ -190,12 +256,14 @@ const ReservationsPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-800">Reservas</h1>
           <p className="text-gray-500 text-sm mt-0.5">{total} reservas en total</p>
         </div>
-        <button
-          onClick={() => { setForm(EMPTY_FORM); setFormErrors({}); setShowModal(true) }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          + Nueva Reserva
-        </button>
+        <IfCan permission={{ module: 'reservations', action: 'create' }}>
+          <button
+            onClick={() => { setForm({ ...EMPTY_FORM }); setFormErrors({}); setAvailabilityStatus('unknown'); setShowModal(true) }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            + Nueva Reserva
+          </button>
+        </IfCan>
       </div>
 
       {/* Alertas */}
@@ -251,7 +319,7 @@ const ReservationsPage: React.FC = () => {
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
                 <tr>
                   <th className="px-5 py-3 font-medium">#</th>
-                  <th className="px-5 py-3 font-medium">Usuario</th>
+                  {!perms.isStudent() && <th className="px-5 py-3 font-medium">Usuario</th>}
                   <th className="px-5 py-3 font-medium">Equipo</th>
                   <th className="px-5 py-3 font-medium">Inicio</th>
                   <th className="px-5 py-3 font-medium">Fin</th>
@@ -263,9 +331,11 @@ const ReservationsPage: React.FC = () => {
                 {filtered.map((r) => (
                   <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3 text-gray-400 font-mono text-xs">{r.id}</td>
-                    <td className="px-5 py-3 font-medium text-gray-800">
-                      {r.user?.name ?? `Usuario #${r.user_id}`}
-                    </td>
+                    {!perms.isStudent() && (
+                      <td className="px-5 py-3 font-medium text-gray-800">
+                        {r.user?.name ?? `Usuario #${r.user_id}`}
+                      </td>
+                    )}
                     <td className="px-5 py-3 text-gray-600">
                       {r.equipment?.name ?? `Equipo #${r.equipment_id}`}
                     </td>
@@ -286,30 +356,45 @@ const ReservationsPage: React.FC = () => {
                         </button>
                         {r.status === 'pending' && (
                           <>
-                            <button
+                            <ProtectedButton
+                              permission={{ module: 'reservations', action: 'edit' }}
                               onClick={() => handleApprove(r.id)}
                               disabled={actionLoading === r.id}
                               className="text-green-600 hover:text-green-800 text-xs font-medium disabled:opacity-50"
                             >
                               Aprobar
-                            </button>
-                            <button
+                            </ProtectedButton>
+                            <ProtectedButton
+                              permission={{ module: 'reservations', action: 'edit' }}
                               onClick={() => { setRejectModal({ id: r.id }); setRejectReason('') }}
                               disabled={actionLoading === r.id}
                               className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-50"
                             >
                               Rechazar
-                            </button>
+                            </ProtectedButton>
                           </>
                         )}
-                        {(r.status === 'pending' || r.status === 'approved') && r.user_id === user?.id && (
-                          <button
-                            onClick={() => handleCancel(r.id)}
-                            disabled={actionLoading === r.id}
-                            className="text-orange-500 hover:text-orange-700 text-xs font-medium disabled:opacity-50"
-                          >
-                            Cancelar
-                          </button>
+                        {(r.status === 'pending' || r.status === 'approved') && (
+                          r.user_id === user?.id ? (
+                            // El propietario siempre puede cancelar su propia reserva
+                            <button
+                              onClick={() => handleCancel(r.id)}
+                              disabled={actionLoading === r.id}
+                              className="text-orange-500 hover:text-orange-700 text-xs font-medium disabled:opacity-50"
+                            >
+                              Cancelar
+                            </button>
+                          ) : (
+                            // Admin/Lab Manager pueden cancelar reservas de otros
+                            <ProtectedButton
+                              permission={{ module: 'reservations', action: 'edit' }}
+                              onClick={() => handleCancel(r.id)}
+                              disabled={actionLoading === r.id}
+                              className="text-orange-500 hover:text-orange-700 text-xs font-medium disabled:opacity-50"
+                            >
+                              Cancelar
+                            </ProtectedButton>
+                          )
                         )}
                       </div>
                     </td>
@@ -368,30 +453,71 @@ const ReservationsPage: React.FC = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de inicio *</label>
+            {/* Fecha y hora de inicio */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de inicio *</label>
+              <div className="grid grid-cols-2 gap-2">
                 <input
-                  type="datetime-local"
-                  value={form.start_time}
-                  onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-                  min={new Date().toISOString().slice(0, 16)}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.start_time ? 'border-red-400' : 'border-gray-200'}`}
+                  type="date"
+                  value={form.start_date}
+                  onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                  min={new Date().toISOString().slice(0, 10)}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.start_date ? 'border-red-400' : 'border-gray-200'}`}
                 />
-                {formErrors.start_time && <p className="text-red-500 text-xs mt-1">{formErrors.start_time}</p>}
+                <select
+                  value={form.start_hour}
+                  onChange={(e) => setForm({ ...form, start_hour: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                >
+                  {TIME_OPTIONS.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de fin *</label>
-                <input
-                  type="datetime-local"
-                  value={form.end_time}
-                  onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-                  min={form.start_time || new Date().toISOString().slice(0, 16)}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.end_time ? 'border-red-400' : 'border-gray-200'}`}
-                />
-                {formErrors.end_time && <p className="text-red-500 text-xs mt-1">{formErrors.end_time}</p>}
-              </div>
+              {formErrors.start_date && <p className="text-red-500 text-xs mt-1">{formErrors.start_date}</p>}
             </div>
+
+            {/* Fecha y hora de fin */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de fin *</label>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  value={form.end_date}
+                  onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                  min={form.start_date || new Date().toISOString().slice(0, 10)}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.end_date ? 'border-red-400' : 'border-gray-200'}`}
+                />
+                <select
+                  value={form.end_hour}
+                  onChange={(e) => setForm({ ...form, end_hour: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                >
+                  {TIME_OPTIONS.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              {formErrors.end_date && <p className="text-red-500 text-xs mt-1">{formErrors.end_date}</p>}
+            </div>
+
+            {/* Indicador de disponibilidad */}
+            {availabilityStatus !== 'unknown' && (
+              <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${
+                availabilityStatus === 'checking' ? 'bg-gray-50 text-gray-500' :
+                availabilityStatus === 'available' ? 'bg-green-50 text-green-700 border border-green-200' :
+                'bg-red-50 text-red-700 border border-red-200'
+              }`}>
+                {availabilityStatus === 'checking' && <span className="animate-spin">⏳</span>}
+                {availabilityStatus === 'available' && <span>✓</span>}
+                {availabilityStatus === 'unavailable' && <span>✗</span>}
+                <span>
+                  {availabilityStatus === 'checking' && 'Verificando disponibilidad...'}
+                  {availabilityStatus === 'available' && 'Equipo disponible en el horario seleccionado'}
+                  {availabilityStatus === 'unavailable' && 'El equipo ya tiene una reserva en ese horario'}
+                </span>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notas (opcional)</label>

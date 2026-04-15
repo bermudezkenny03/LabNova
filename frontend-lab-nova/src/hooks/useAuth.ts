@@ -3,16 +3,14 @@ import { authService } from '../services'
 import { AuthUser } from '../types'
 
 export const useAuth = () => {
-  const [user, setUser] = useState<AuthUser | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [user, setUser] = useState<AuthUser | null>(() => authService.getCurrentUser())
+  const [isLoading, setIsLoading] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => authService.isAuthenticated())
 
   useEffect(() => {
-    const currentUser = authService.getCurrentUser()
-    const authenticated = authService.isAuthenticated()
-    
-    setUser(currentUser)
-    setIsAuthenticated(authenticated)
+    // Sync in case localStorage changed externally
+    setUser(authService.getCurrentUser())
+    setIsAuthenticated(authService.isAuthenticated())
     setIsLoading(false)
   }, [])
 

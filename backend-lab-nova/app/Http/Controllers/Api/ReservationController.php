@@ -14,10 +14,21 @@ class ReservationController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
+            $user = $request->user();
             $perPage = $request->get('per_page', 15);
-            $reservations = Reservation::with(['user', 'equipment', 'approver'])
-                ->latest()
-                ->paginate($perPage);
+
+            // Estudiantes solo ven sus propias reservas
+            if ($user->role->name === 'Estudiante') {
+                $reservations = Reservation::with(['user', 'equipment', 'approver'])
+                    ->where('user_id', $user->id)
+                    ->latest()
+                    ->paginate($perPage);
+            } else {
+                // Admin, Lab Manager y Docente ven todas
+                $reservations = Reservation::with(['user', 'equipment', 'approver'])
+                    ->latest()
+                    ->paginate($perPage);
+            }
 
             return response()->json([
                 'success' => true,
@@ -38,12 +49,30 @@ class ReservationController extends Controller
     public function store(Request $request): JsonResponse
     {
         try {
+            $user = $request->user();
+
+            // Estudiantes solo pueden crear para sí mismos
+            if ($user->role->name === 'Estudiante' && $request->get('user_id') && $request->get('user_id') != $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para crear reservas para otros usuarios'
+                ], 403);
+            }
+
             $validated = $request->validate([
                 'equipment_id' => 'required|exists:equipment,id',
                 'start_time'   => 'required|date',
                 'end_time'     => 'required|date|after:start_time',
                 'notes'        => 'nullable|string',
             ]);
+
+            // Verificar disponibilidad antes de crear
+            if ($this->hasConflict((int) $validated['equipment_id'], $validated['start_time'], $validated['end_time'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El equipo no está disponible en el horario seleccionado.',
+                ], 422);
+            }
 
             $validated['user_id'] = $request->user()->id;
             $validated['status']  = 'pending';
@@ -169,7 +198,25 @@ class ReservationController extends Controller
     public function cancel(Request $request, int $id): JsonResponse
     {
         try {
+            $user = $request->user();
             $reservation = Reservation::findOrFail($id);
+
+            // Solo el propietario o admin/lab manager pueden cancelar
+            if ($reservation->user_id !== $user->id && !in_array($user->role->name, ['Super Admin', 'Administrador', 'Encargado de Laboratorio'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para cancelar esta reserva'
+                ], 403);
+            }
+
+            // Solo se puede cancelar si está pendiente o aprobada
+            if (in_array($reservation->status, ['rejected', 'cancelled', 'completed'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta reserva no puede ser cancelada en su estado actual'
+                ], 400);
+            }
+
             $reservation->update(['status' => 'cancelled']);
 
             ReservationLog::create([
@@ -210,16 +257,38 @@ class ReservationController extends Controller
                 'end_date'     => 'required|date|after:start_date',
             ]);
 
-            $conflict = Reservation::where('equipment_id', $request->equipment_id)
-                ->whereIn('status', ['pending', 'approved'])
-                ->where(function ($q) use ($request) {
-                    $q->whereBetween('start_time', [$request->start_date, $request->end_date])
-                      ->orWhereBetween('end_time', [$request->start_date, $request->end_date]);
-                })->exists();
+            $conflict = $this->hasConflict(
+                (int) $request->equipment_id,
+                $request->start_date,
+                $request->end_date
+            );
 
             return response()->json(['available' => !$conflict]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Error al verificar disponibilidad', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Verifica si existe alguna reserva activa que se superponga con el rango dado.
+     * Cubre los 3 casos de solapamiento:
+     *   1. La reserva existente empieza dentro del rango solicitado
+     *   2. La reserva existente termina dentro del rango solicitado
+     *   3. La reserva existente envuelve completamente el rango solicitado
+     */
+    private function hasConflict(int $equipmentId, string $start, string $end, ?int $excludeId = null): bool
+    {
+        return Reservation::where('equipment_id', $equipmentId)
+            ->whereIn('status', ['pending', 'approved'])
+            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('start_time', [$start, $end])
+                  ->orWhereBetween('end_time', [$start, $end])
+                  ->orWhere(function ($sub) use ($start, $end) {
+                      // Reserva existente envuelve completamente el rango solicitado
+                      $sub->where('start_time', '<=', $start)
+                          ->where('end_time', '>=', $end);
+                  });
+            })->exists();
     }
 }

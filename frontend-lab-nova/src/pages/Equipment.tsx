@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { equipmentService } from '../services/equipmentService'
 import { Equipment, Category } from '../types'
 import { Modal } from '../components/common/Modal'
+import { usePermissions } from '../hooks/usePermissions'
+import { ProtectedButton, IfCan } from '../components/ProtectedFeature'
 
 const STATUS_LABELS: Record<Equipment['status'], string> = {
   available: 'Disponible',
@@ -36,6 +38,7 @@ const EMPTY_FORM: EquipmentForm = {
 }
 
 const EquipmentPage: React.FC = () => {
+  const perms = usePermissions()
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,6 +58,14 @@ const EquipmentPage: React.FC = () => {
 
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  // Gestión de categorías
+  const [showCatModal, setShowCatModal] = useState(false)
+  const [catForm, setCatForm] = useState({ name: '', description: '' })
+  const [editingCatId, setEditingCatId] = useState<number | null>(null)
+  const [savingCat, setSavingCat] = useState(false)
+  const [deletingCatId, setDeletingCatId] = useState<number | null>(null)
+  const [catError, setCatError] = useState<string | null>(null)
 
   const showSuccess = (msg: string) => {
     setSuccessMsg(msg)
@@ -204,6 +215,40 @@ const EquipmentPage: React.FC = () => {
     }
   }
 
+  const handleSaveCat = async () => {
+    if (!catForm.name.trim()) { setCatError('El nombre es requerido.'); return }
+    try {
+      setSavingCat(true)
+      setCatError(null)
+      if (editingCatId) {
+        await equipmentService.updateCategory(editingCatId, catForm)
+      } else {
+        await equipmentService.createCategory(catForm)
+      }
+      setCatForm({ name: '', description: '' })
+      setEditingCatId(null)
+      loadCategories()
+      showSuccess(editingCatId ? 'Categoría actualizada.' : 'Categoría creada.')
+    } catch {
+      setCatError('No se pudo guardar la categoría.')
+    } finally {
+      setSavingCat(false)
+    }
+  }
+
+  const handleDeleteCat = async (id: number) => {
+    try {
+      setDeletingCatId(id)
+      await equipmentService.deleteCategory(id)
+      loadCategories()
+      showSuccess('Categoría eliminada.')
+    } catch {
+      setCatError('No se pudo eliminar. Verifica que no tenga equipos asociados.')
+    } finally {
+      setDeletingCatId(null)
+    }
+  }
+
   const field = (
     label: string,
     key: keyof EquipmentForm,
@@ -227,12 +272,24 @@ const EquipmentPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-800">Equipos</h1>
           <p className="text-gray-500 text-sm mt-0.5">{total} equipos registrados</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          + Nuevo Equipo
-        </button>
+        <div className="flex gap-2">
+          <IfCan permission={{ module: 'equipment', action: 'edit' }}>
+            <button
+              onClick={() => { setCatForm({ name: '', description: '' }); setEditingCatId(null); setCatError(null); setShowCatModal(true) }}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-gray-200"
+            >
+              Categorías
+            </button>
+          </IfCan>
+          <IfCan permission={{ module: 'equipment', action: 'create' }}>
+            <button
+              onClick={openCreate}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              + Nuevo Equipo
+            </button>
+          </IfCan>
+        </div>
       </div>
 
       {/* Alertas */}
@@ -327,12 +384,20 @@ const EquipmentPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <button onClick={() => openEdit(eq)} className="text-blue-600 hover:text-blue-800 text-xs font-medium mr-3">
+                      <ProtectedButton
+                        permission={{ module: 'equipment', action: 'edit' }}
+                        onClick={() => openEdit(eq)}
+                        className="text-blue-600 hover:text-blue-800 text-xs font-medium mr-3"
+                      >
                         Editar
-                      </button>
-                      <button onClick={() => setDeleteId(eq.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">
+                      </ProtectedButton>
+                      <ProtectedButton
+                        permission={{ module: 'equipment', action: 'delete' }}
+                        onClick={() => setDeleteId(eq.id)}
+                        className="text-red-500 hover:text-red-700 text-xs font-medium"
+                      >
                         Eliminar
-                      </button>
+                      </ProtectedButton>
                     </td>
                   </tr>
                 ))}
@@ -400,6 +465,115 @@ const EquipmentPage: React.FC = () => {
             <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
               {saving ? 'Guardando...' : editingId ? 'Actualizar' : 'Crear Equipo'}
             </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal gestión de categorías */}
+      {showCatModal && (
+        <Modal title="Gestionar Categorías" onClose={() => { setShowCatModal(false); setCatError(null) }} size="lg">
+          <div className="space-y-4">
+            {catError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm flex justify-between">
+                {catError}
+                <button onClick={() => setCatError(null)} className="ml-2 text-red-400">&times;</button>
+              </div>
+            )}
+
+            {/* Formulario crear/editar */}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700">
+                {editingCatId ? 'Editar categoría' : 'Nueva categoría'}
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
+                  <input
+                    type="text"
+                    value={catForm.name}
+                    onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder="Ej: Computadores"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
+                  <input
+                    type="text"
+                    value={catForm.description}
+                    onChange={(e) => setCatForm({ ...catForm, description: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder="Descripción opcional"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                {editingCatId && (
+                  <button
+                    onClick={() => { setEditingCatId(null); setCatForm({ name: '', description: '' }) }}
+                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    Cancelar edición
+                  </button>
+                )}
+                <button
+                  onClick={handleSaveCat}
+                  disabled={savingCat}
+                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {savingCat ? 'Guardando...' : editingCatId ? 'Actualizar' : '+ Agregar'}
+                </button>
+              </div>
+            </div>
+
+            {/* Lista de categorías */}
+            <div className="border border-gray-100 rounded-lg overflow-hidden">
+              {categories.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-6">No hay categorías registradas.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium">Nombre</th>
+                      <th className="px-4 py-2 text-left font-medium">Descripción</th>
+                      <th className="px-4 py-2 text-right font-medium">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {categories.map((cat) => (
+                      <tr key={cat.id} className={`hover:bg-gray-50 ${editingCatId === cat.id ? 'bg-blue-50' : ''}`}>
+                        <td className="px-4 py-2 font-medium text-gray-800">{cat.name}</td>
+                        <td className="px-4 py-2 text-gray-500 text-xs">{cat.description ?? '—'}</td>
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            onClick={() => { setEditingCatId(cat.id); setCatForm({ name: cat.name, description: cat.description ?? '' }) }}
+                            className="text-blue-600 hover:text-blue-800 text-xs font-medium mr-3"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCat(cat.id)}
+                            disabled={deletingCatId === cat.id}
+                            className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-50"
+                          >
+                            {deletingCatId === cat.id ? '...' : 'Eliminar'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => { setShowCatModal(false); setCatError(null) }}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </Modal>
       )}
