@@ -114,4 +114,14 @@ export const reportService = {
       out_of_service: number
     }
   },
+
+  // POST /reports/generate → returns full data ready for client-side PDF generation
+  generateReport: async (data: {
+    type: 'reservations' | 'equipment_usage' | 'user_activity'
+    start_date?: string
+    end_date?: string
+  }) => {
+    const response = await apiClient.post('/reports/generate', data)
+    return response.data.data
+  },
 }

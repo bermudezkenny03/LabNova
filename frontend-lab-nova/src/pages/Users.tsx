@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { userService } from '../services/userService'
 import { User } from '../types'
 import { Modal } from '../components/common/Modal'
+import { usePermissions } from '../hooks/usePermissions'
+import { ProtectedButton, IfCan } from '../components/ProtectedFeature'
 
 interface Role {
   id: number
@@ -30,6 +32,22 @@ const EMPTY_FORM: UserForm = {
 }
 
 const UsersPage: React.FC = () => {
+  const { canCreate, canEdit, canDelete, canView } = usePermissions()
+
+  // Si no tiene permiso para ver usuarios, mostrar mensaje de acceso denegado
+  if (!canView('users')) {
+    return (
+      <div className="space-y-5">
+        <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded">
+          <h2 className="text-lg font-semibold text-red-800 mb-2">Acceso Denegado</h2>
+          <p className="text-red-700">
+            No tienes permisos para acceder a la gestión de usuarios. Esto está reservado para administradores.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const [users, setUsers] = useState<User[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(true)
@@ -190,12 +208,14 @@ const UsersPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-800">Usuarios</h1>
           <p className="text-gray-500 text-sm mt-0.5">{total} usuarios registrados</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          + Nuevo Usuario
-        </button>
+        <IfCan permission={{ module: 'users', action: 'create' }}>
+          <button
+            onClick={openCreate}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            + Nuevo Usuario
+          </button>
+        </IfCan>
       </div>
 
       {/* Alertas */}
@@ -300,18 +320,20 @@ const UsersPage: React.FC = () => {
                       {new Date(user.created_at).toLocaleDateString('es-CO')}
                     </td>
                     <td className="px-6 py-3 text-right">
-                      <button
+                      <ProtectedButton
+                        permission={{ module: 'users', action: 'edit' }}
                         onClick={() => openEdit(user)}
                         className="text-blue-600 hover:text-blue-800 text-xs font-medium mr-3"
                       >
                         Editar
-                      </button>
-                      <button
+                      </ProtectedButton>
+                      <ProtectedButton
+                        permission={{ module: 'users', action: 'delete' }}
                         onClick={() => setDeleteId(user.id)}
                         className="text-red-500 hover:text-red-700 text-xs font-medium"
                       >
                         Eliminar
-                      </button>
+                      </ProtectedButton>
                     </td>
                   </tr>
                 ))}
@@ -323,7 +345,12 @@ const UsersPage: React.FC = () => {
 
       {/* Modal crear/editar */}
       {showModal && (
-        <Modal title={editingId ? 'Editar Usuario' : 'Nuevo Usuario'} onClose={() => setShowModal(false)} size="lg">
+        <Modal 
+          title={editingId ? 'Editar Usuario' : 'Nuevo Usuario'} 
+          onClose={() => setShowModal(false)} 
+          size="lg"
+          allowBackdropClick={false}
+        >
           <div className="grid grid-cols-2 gap-4">
             {/* Nombre */}
             <div>

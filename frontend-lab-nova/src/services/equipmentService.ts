@@ -49,6 +49,20 @@ export const equipmentService = {
     return response.data.data
   },
 
+  createCategory: async (data: { name: string; description?: string }): Promise<Category> => {
+    const response = await apiClient.post('/categories', data)
+    return response.data.data
+  },
+
+  updateCategory: async (id: number, data: { name: string; description?: string; status?: boolean }): Promise<Category> => {
+    const response = await apiClient.put(`/categories/${id}`, data)
+    return response.data.data
+  },
+
+  deleteCategory: async (id: number): Promise<void> => {
+    await apiClient.delete(`/categories/${id}`)
+  },
+
   searchEquipment: async (query: string): Promise<Equipment[]> => {
     const response = await apiClient.get('/equipment/search', {
       params: { q: query },

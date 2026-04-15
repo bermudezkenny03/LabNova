@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\Module;
 
 #[Fillable(['name', 'last_name', 'email', 'password', 'phone', 'status', 'role_id'])]
 #[Hidden(['password', 'remember_token'])]
@@ -36,6 +37,12 @@ class User extends Authenticatable
     public function userDetail()
     {
         return $this->hasOne(UserDetail::class);
+    }
+
+    // Define the relationship with the Reservation model
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class);
     }
 
     // Define the relationship with the Role model

@@ -23,8 +23,9 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Clear auth and redirect to login
+    const isLoginRequest = error.config?.url?.includes('/login')
+    if (error.response?.status === 401 && !isLoginRequest) {
+      // Clear auth and redirect to login only for protected routes
       localStorage.removeItem('token')
       window.location.href = '/login'
     }

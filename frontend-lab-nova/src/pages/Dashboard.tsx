@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks'
-import { equipmentService } from '../services/equipmentService'
+import { IfCan } from '../components/ProtectedFeature'
 import { reservationService } from '../services/reservationService'
+import { reportService } from '../services/reportService'
 import { Reservation } from '../types'
 
 interface Stats {
@@ -69,35 +70,36 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     const load = async () => {
-      try {
-        setLoading(true)
-        setError(null)
+      setLoading(true)
+      setError(null)
 
-        const [equipRes, resRes] = await Promise.all([
-          equipmentService.getAllEquipment(),
-          reservationService.getAllReservations(1, 100),
-        ])
+      const [equipResult, resStatsResult, reservationsResult] = await Promise.allSettled([
+        reportService.getEquipmentStats(),
+        reportService.getReservationStats(),
+        reservationService.getAllReservations(1, 8),
+      ])
 
-        const equipment = equipRes.data ?? []
-        const reservations = resRes.data ?? []
+      const equipStats      = equipResult.status      === 'fulfilled' ? equipResult.value      : null
+      const resStats        = resStatsResult.status   === 'fulfilled' ? resStatsResult.value   : null
+      const reservationsRes = reservationsResult.status === 'fulfilled' ? reservationsResult.value : null
 
-        setStats({
-          totalEquipment: equipRes.total,
-          availableEquipment: equipment.filter((e) => e.status === 'available').length,
-          maintenanceEquipment: equipment.filter((e) => e.status === 'maintenance').length,
-          outOfServiceEquipment: equipment.filter((e) => e.status === 'out_of_service').length,
-          totalReservations: resRes.total,
-          pendingReservations: reservations.filter((r) => r.status === 'pending').length,
-          approvedReservations: reservations.filter((r) => r.status === 'approved').length,
-        })
-
-        setRecentReservations(reservations.slice(0, 8))
-      } catch (err) {
-        setError('No se pudo cargar la informacion. Verifica la conexion con el servidor.')
-        console.error(err)
-      } finally {
-        setLoading(false)
+      // Solo mostrar error si la llamada de reservas recientes falla (todas las vistas la necesitan)
+      if (reservationsResult.status === 'rejected') {
+        setError('No se pudo cargar la información. Verifica la conexión con el servidor.')
       }
+
+      setStats({
+        totalEquipment:       equipStats?.total          ?? 0,
+        availableEquipment:   equipStats?.available      ?? 0,
+        maintenanceEquipment: equipStats?.maintenance    ?? 0,
+        outOfServiceEquipment:equipStats?.out_of_service ?? 0,
+        totalReservations:    resStats?.total            ?? 0,
+        pendingReservations:  resStats?.pending          ?? 0,
+        approvedReservations: resStats?.approved         ?? 0,
+      })
+
+      setRecentReservations(reservationsRes?.data ?? [])
+      setLoading(false)
     }
     load()
   }, [])
@@ -128,130 +130,142 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* Stats: Equipos */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Equipos</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {loading ? (
-            [...Array(4)].map((_, i) => <Skeleton key={i} />)
-          ) : (
-            <>
-              <StatCard title="Total Equipos" value={stats.totalEquipment} color="bg-blue-100 text-blue-600" icon="🔬" to="/equipment" />
-              <StatCard title="Disponibles" value={stats.availableEquipment} subtitle="Listos para reservar" color="bg-green-100 text-green-600" icon="✅" to="/equipment" />
-              <StatCard title="Mantenimiento" value={stats.maintenanceEquipment} color="bg-orange-100 text-orange-600" icon="🔧" to="/equipment" />
-              <StatCard title="Fuera de servicio" value={stats.outOfServiceEquipment} color="bg-red-100 text-red-600" icon="⛔" to="/equipment" />
-            </>
-          )}
+      <IfCan permission={{ module: 'equipment', action: 'view' }}>
+        <div>
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Equipos</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {loading ? (
+              [...Array(4)].map((_, i) => <Skeleton key={i} />)
+            ) : (
+              <>
+                <StatCard title="Total Equipos" value={stats.totalEquipment} color="bg-blue-100 text-blue-600" icon="🔬" to="/equipment" />
+                <StatCard title="Disponibles" value={stats.availableEquipment} subtitle="Listos para reservar" color="bg-green-100 text-green-600" icon="✅" to="/equipment" />
+                <StatCard title="Mantenimiento" value={stats.maintenanceEquipment} color="bg-orange-100 text-orange-600" icon="🔧" to="/equipment" />
+                <StatCard title="Fuera de servicio" value={stats.outOfServiceEquipment} color="bg-red-100 text-red-600" icon="⛔" to="/equipment" />
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </IfCan>
 
       {/* Stats: Reservas */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Reservas</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {loading ? (
-            [...Array(3)].map((_, i) => <Skeleton key={i} />)
-          ) : (
-            <>
-              <StatCard title="Total Reservas" value={stats.totalReservations} color="bg-purple-100 text-purple-600" icon="📋" to="/reservations" />
-              <StatCard title="Pendientes" value={stats.pendingReservations} subtitle="Esperando aprobacion" color="bg-yellow-100 text-yellow-600" icon="⏳" to="/reservations" />
-              <StatCard title="Aprobadas" value={stats.approvedReservations} color="bg-green-100 text-green-600" icon="📅" to="/reservations" />
-            </>
-          )}
+      <IfCan permission={{ module: 'reservations', action: 'view' }}>
+        <div>
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Reservas</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {loading ? (
+              [...Array(3)].map((_, i) => <Skeleton key={i} />)
+            ) : (
+              <>
+                <StatCard title="Total Reservas" value={stats.totalReservations} color="bg-purple-100 text-purple-600" icon="📋" to="/reservations" />
+                <StatCard title="Pendientes" value={stats.pendingReservations} subtitle="Esperando aprobacion" color="bg-yellow-100 text-yellow-600" icon="⏳" to="/reservations" />
+                <StatCard title="Aprobadas" value={stats.approvedReservations} color="bg-green-100 text-green-600" icon="📅" to="/reservations" />
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </IfCan>
 
       {/* Reservas recientes */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-800">Reservas Recientes</h2>
-          <Link to="/reservations" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-            Ver todas →
-          </Link>
-        </div>
-
-        {loading ? (
-          <div className="p-6 space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse" />
-            ))}
-          </div>
-        ) : recentReservations.length === 0 ? (
-          <div className="p-10 text-center">
-            <p className="text-gray-400 text-sm">No hay reservas registradas aun.</p>
-            <Link to="/reservations" className="mt-3 inline-block text-sm text-blue-600 hover:underline">
-              Crear primera reserva
+      <IfCan permission={{ module: 'reservations', action: 'view' }}>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-800">Reservas Recientes</h2>
+            <Link to="/reservations" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+              Ver todas →
             </Link>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="bg-gray-50 text-gray-500 text-xs uppercase">
-                  <th className="px-6 py-3 font-medium">#</th>
-                  <th className="px-6 py-3 font-medium">Usuario</th>
-                  <th className="px-6 py-3 font-medium">Equipo</th>
-                  <th className="px-6 py-3 font-medium">Inicio</th>
-                  <th className="px-6 py-3 font-medium">Fin</th>
-                  <th className="px-6 py-3 font-medium">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {recentReservations.map((r) => (
-                  <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-3 text-gray-400 font-mono text-xs">{r.id}</td>
-                    <td className="px-6 py-3 font-medium text-gray-800">
-                      {r.user?.name ?? `Usuario #${r.user_id}`}
-                    </td>
-                    <td className="px-6 py-3 text-gray-600">
-                      {r.equipment?.name ?? `Equipo #${r.equipment_id}`}
-                    </td>
-                    <td className="px-6 py-3 text-gray-500">{formatDate(r.start_time)}</td>
-                    <td className="px-6 py-3 text-gray-500">{formatDate(r.end_time)}</td>
-                    <td className="px-6 py-3">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[r.status]}`}>
-                        {statusLabels[r.status]}
-                      </span>
-                    </td>
+
+          {loading ? (
+            <div className="p-6 space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : recentReservations.length === 0 ? (
+            <div className="p-10 text-center">
+              <p className="text-gray-400 text-sm">No hay reservas registradas aun.</p>
+              <Link to="/reservations" className="mt-3 inline-block text-sm text-blue-600 hover:underline">
+                Crear primera reserva
+              </Link>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-500 text-xs uppercase">
+                    <th className="px-6 py-3 font-medium">Usuario</th>
+                    <th className="px-6 py-3 font-medium">Equipo</th>
+                    <th className="px-6 py-3 font-medium">Inicio</th>
+                    <th className="px-6 py-3 font-medium">Fin</th>
+                    <th className="px-6 py-3 font-medium">Estado</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {recentReservations.map((r) => (
+                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-3 font-medium text-gray-800">
+                        {r.user?.name ?? `Usuario #${r.user_id}`}
+                      </td>
+                      <td className="px-6 py-3 text-gray-600">
+                        {r.equipment?.name ?? `Equipo #${r.equipment_id}`}
+                      </td>
+                      <td className="px-6 py-3 text-gray-500">{formatDate(r.start_time)}</td>
+                      <td className="px-6 py-3 text-gray-500">{formatDate(r.end_time)}</td>
+                      <td className="px-6 py-3">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[r.status]}`}>
+                          {statusLabels[r.status]}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </IfCan>
 
       {/* Accesos rapidos */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-base font-semibold text-gray-800 mb-4">Accesos Rapidos</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Link
-            to="/reservations"
-            className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors text-center"
-          >
-            <span className="text-2xl mb-2">📅</span>
-            <span className="text-sm font-medium text-gray-600">Nueva Reserva</span>
-          </Link>
-          <Link
-            to="/equipment"
-            className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-green-400 hover:bg-green-50 transition-colors text-center"
-          >
-            <span className="text-2xl mb-2">🔬</span>
-            <span className="text-sm font-medium text-gray-600">Ver Equipos</span>
-          </Link>
-          <Link
-            to="/users"
-            className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-purple-400 hover:bg-purple-50 transition-colors text-center"
-          >
-            <span className="text-2xl mb-2">👥</span>
-            <span className="text-sm font-medium text-gray-600">Usuarios</span>
-          </Link>
-          <Link
-            to="/reports"
-            className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-orange-400 hover:bg-orange-50 transition-colors text-center"
-          >
-            <span className="text-2xl mb-2">📊</span>
-            <span className="text-sm font-medium text-gray-600">Reportes</span>
-          </Link>
+          <IfCan permission={{ module: 'reservations', action: 'create' }}>
+            <Link
+              to="/reservations"
+              className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors text-center"
+            >
+              <span className="text-2xl mb-2">📅</span>
+              <span className="text-sm font-medium text-gray-600">Nueva Reserva</span>
+            </Link>
+          </IfCan>
+          <IfCan permission={{ module: 'equipment', action: 'view' }}>
+            <Link
+              to="/equipment"
+              className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-green-400 hover:bg-green-50 transition-colors text-center"
+            >
+              <span className="text-2xl mb-2">🔬</span>
+              <span className="text-sm font-medium text-gray-600">Ver Equipos</span>
+            </Link>
+          </IfCan>
+          <IfCan permission={{ module: 'users', action: 'view' }}>
+            <Link
+              to="/users"
+              className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-purple-400 hover:bg-purple-50 transition-colors text-center"
+            >
+              <span className="text-2xl mb-2">👥</span>
+              <span className="text-sm font-medium text-gray-600">Usuarios</span>
+            </Link>
+          </IfCan>
+          <IfCan permission={{ module: 'reports', action: 'view' }}>
+            <Link
+              to="/reports"
+              className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-orange-400 hover:bg-orange-50 transition-colors text-center"
+            >
+              <span className="text-2xl mb-2">📊</span>
+              <span className="text-sm font-medium text-gray-600">Reportes</span>
+            </Link>
+          </IfCan>
         </div>
       </div>
     </div>

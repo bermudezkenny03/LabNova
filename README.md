@@ -18,16 +18,20 @@ Sistema web para la gestión y reserva de equipos de laboratorio de manera efici
 - 🔔 Notificaciones de reservas
 - 📊 Historial de uso
 - 🔒 Sistema de autenticación seguro
+- 🛡️ **Control de acceso basado en roles (RBAC)** - Multi-capa de seguridad
+- 🔐 Validación de permisos en frontend y backend
+- 📋 5 roles predefinidos con permisos granulares
 
 ---
 
 ## 🛠️ Tecnologías
 
-- ⚙️ Backend: Laravel (PHP)
-- 🗄️ Base de datos: MySQL
-- 🌐 API REST
-- 🎨 Frontend: Vue.js
-- 📦 Gestión de paquetes: npm
+- ⚙️ Backend: Laravel 11 (PHP) con Sanctum para autenticación
+- 🗄️ Base de datos: SQLite (desarrollo) / MySQL (producción)
+- 🌐 API REST con middleware de permisos
+- 🎨 Frontend: React 18 + TypeScript
+- 🔒 RBAC: Sistema de control de acceso basado en roles
+- 📦 Gestión de paquetes: npm + Composer
 
 ---
 
@@ -67,3 +71,51 @@ npm run dev
 # Iniciar servidor backend
 php artisan serve
 ```
+
+---
+
+## 🔐 Sistema RBAC (Control de Acceso Basado en Roles)
+
+LabNova implementa un sistema robusto de control de acceso con **tres capas de seguridad**:
+
+### Roles Disponibles
+
+| Rol | Descripción | Acceso |
+|-----|-------------|--------|
+| **Super Admin** | Acceso sin restricciones | Todos los módulos |
+| **Administrador** | Gestión de usuarios y sistema | Usuarios, Equipos, Reportes, Reservas (aprobar) |
+| **Encargado de Laboratorio** | Gestión de equipos y aprobación | Equipos (CRUD), Reservas (aprobar) |
+| **Docente** | Docencia y reserva | Reservas, Equipos (lectura), Reportes |
+| **Estudiante** | Uso de laboratorio | Sus propias reservas, Equipos (lectura) |
+
+### Capas de Seguridad
+
+1. **Nivel de Rutas** - Protección en React
+   - `ProtectedRoute` - Bloquea navegación no autorizada
+   - Redirección a login si no autenticado
+
+2. **Nivel de Componentes** - Protección en la UI
+   - `ProtectedButton` - Oculta/desactiva botones
+   - `IfCan` - Renderizado condicional
+   - Feedback visual de permisos denegados
+
+3. **Nivel de API Backend** - Validación en el servidor
+   - Middleware `CheckPermission` en todas las rutas
+   - Validación de permisos en controladores
+   - Respuestas 403 para acceso denegado
+
+### Credenciales de Prueba
+
+```
+Contraseña para todos: Password123!
+
+- Super Admin: superadmin@test.com
+- Administrador: admin@test.com
+- Encargado: encargado@test.com
+- Docente: docente@test.com
+- Estudiante: estudiante@test.com
+```
+
+Para más detalles, ver [RBAC_IMPLEMENTATION_SUMMARY.md](./RBAC_IMPLEMENTATION_SUMMARY.md) y [TESTING_RBAC_GUIDE.md](./TESTING_RBAC_GUIDE.md)
+
+---

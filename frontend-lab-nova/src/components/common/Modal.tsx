@@ -5,6 +5,8 @@ interface ModalProps {
   onClose: () => void
   children: React.ReactNode
   size?: 'sm' | 'md' | 'lg'
+  allowBackdropClick?: boolean
+  closeOnEsc?: boolean
 }
 
 const sizeClasses = {
@@ -13,17 +15,32 @@ const sizeClasses = {
   lg: 'max-w-2xl',
 }
 
-export const Modal: React.FC<ModalProps> = ({ title, onClose, children, size = 'md' }) => {
+export const Modal: React.FC<ModalProps> = ({ 
+  title, 
+  onClose, 
+  children, 
+  size = 'md',
+  allowBackdropClick = false,
+  closeOnEsc = true
+}) => {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const onKey = (e: KeyboardEvent) => {
+      if (closeOnEsc && e.key === 'Escape') onClose()
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, closeOnEsc])
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (allowBackdropClick && e.target === e.currentTarget) {
+      onClose()
+    }
+  }
 
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onClick={handleBackdropClick}
     >
       <div className={`bg-white rounded-lg shadow-xl w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">

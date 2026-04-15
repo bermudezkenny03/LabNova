@@ -16,43 +16,89 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // Users
-    Route::prefix('users')->group(function () {
+    // Perfil del usuario autenticado
+    Route::get('/profile',             [AuthController::class, 'profile']);
+    Route::put('/profile',             [AuthController::class, 'updateProfile']);
+    Route::post('/profile/password',   [AuthController::class, 'changePassword']);
+
+    // Users - Solo Super Admin y Administrador
+    Route::prefix('users')->middleware('permission:users,view')->group(function () {
         Route::get('/general-data', [UserController::class, 'getGeneralData']);
+        Route::get('/', [UserController::class, 'index']);
+        Route::get('/{id}', [UserController::class, 'show']);
+        Route::post('/', [UserController::class, 'store'])->middleware('permission:users,create');
+        Route::put('/{id}', [UserController::class, 'update'])->middleware('permission:users,edit');
+        Route::delete('/{id}', [UserController::class, 'destroy'])->middleware('permission:users,delete');
     });
 
-    Route::apiResource('users', UserController::class);
-
-    // Permissions
-    Route::prefix('permissions')->group(function () {
+    // Permissions - Solo Super Admin y Administrador
+    Route::prefix('permissions')->middleware('permission:users,view')->group(function () {
         Route::post('/general-data', [PermissionController::class, 'index']);
         Route::get('/roles/{role}', [PermissionController::class, 'getRolePermissions']);
-        Route::post('/roles/{role}/assign', [PermissionController::class, 'assignPermissions']);
+        Route::post('/roles/{role}/assign', [PermissionController::class, 'assignPermissions'])->middleware('permission:users,edit');
     });
 
-    // Categories
-    Route::apiResource('categories', CategoryController::class);
+    // Categories - Admin y Encargado Lab
+    Route::prefix('categories')->middleware('permission:equipment,view')->group(function () {
+        Route::get('/', [CategoryController::class, 'index']);
+        Route::get('/{id}', [CategoryController::class, 'show']);
+        Route::post('/', [CategoryController::class, 'store'])->middleware('permission:equipment,create');
+        Route::put('/{id}', [CategoryController::class, 'update'])->middleware('permission:equipment,edit');
+        Route::delete('/{id}', [CategoryController::class, 'destroy'])->middleware('permission:equipment,delete');
+    });
 
-    // Equipment
-    Route::apiResource('equipment', EquipmentController::class);
+    // Equipment - Admin y Encargado Lab
+    Route::prefix('equipment')->middleware('permission:equipment,view')->group(function () {
+        Route::get('/', [EquipmentController::class, 'index']);
+        Route::get('/{id}', [EquipmentController::class, 'show']);
+        Route::post('/', [EquipmentController::class, 'store'])->middleware('permission:equipment,create');
+        Route::put('/{id}', [EquipmentController::class, 'update'])->middleware('permission:equipment,edit');
+        Route::delete('/{id}', [EquipmentController::class, 'destroy'])->middleware('permission:equipment,delete');
+    });
 
-    // Reservations
-    Route::get('/reservations/availability', [ReservationController::class, 'availability']);
-    Route::post('/reservations/{id}/approve', [ReservationController::class, 'approve']);
-    Route::post('/reservations/{id}/reject',  [ReservationController::class, 'reject']);
-    Route::post('/reservations/{id}/cancel',  [ReservationController::class, 'cancel']);
-    Route::get('/reservations/{id}/logs',     [ReservationController::class, 'logs']);
-    Route::apiResource('reservations', ReservationController::class);
+    // Reservations - Todos pueden ver sus reservas
+    Route::prefix('reservations')->group(function () {
+        // Ver disponibilidad de equipos (público para autenticados)
+        Route::get('/availability', [ReservationController::class, 'availability']);
+
+        // Crear reserva (cualquier usuario autenticado pero validado en controller)
+        Route::post('/', [ReservationController::class, 'store'])->middleware('permission:reservations,create');
+
+        // Ver reservas propias
+        Route::get('/', [ReservationController::class, 'index']);
+        Route::get('/{id}', [ReservationController::class, 'show']);
+
+        // Aprobar/Rechazar - Solo Admin y Encargado Lab
+        Route::post('/{id}/approve', [ReservationController::class, 'approve'])->middleware('permission:reservations,edit');
+        Route::post('/{id}/reject', [ReservationController::class, 'reject'])->middleware('permission:reservations,edit');
+
+        // Cancelar propia reserva
+        Route::post('/{id}/cancel', [ReservationController::class, 'cancel']);
+
+        // Ver logs - Solo Admin
+        Route::get('/{id}/logs', [ReservationController::class, 'logs'])->middleware('permission:reservations,view');
+    });
 
     // Report Requests
-    Route::post('/report-requests/{id}/approve',  [ReportRequestController::class, 'approve']);
-    Route::post('/report-requests/{id}/reject',   [ReportRequestController::class, 'reject']);
-    Route::post('/report-requests/{id}/complete', [ReportRequestController::class, 'complete']);
-    Route::apiResource('report-requests', ReportRequestController::class)->only(['index', 'store', 'show']);
+    Route::prefix('report-requests')->group(function () {
+        Route::get('/', [ReportRequestController::class, 'index'])->middleware('permission:reports,view');
+        Route::post('/', [ReportRequestController::class, 'store'])->middleware('permission:reports,create');
+        Route::get('/{id}', [ReportRequestController::class, 'show'])->middleware('permission:reports,view');
 
-    // Reports
-    Route::get('/reports/stats/reservations', [ReportController::class, 'statsReservations']);
-    Route::get('/reports/stats/equipment',    [ReportController::class, 'statsEquipment']);
-    Route::get('/reports/{id}/download',      [ReportController::class, 'download']);
-    Route::apiResource('reports', ReportController::class)->except(['update']);
+        // Aprobar/Rechazar/Completar - Solo Admin
+        Route::post('/{id}/approve', [ReportRequestController::class, 'approve'])->middleware('permission:reports,edit');
+        Route::post('/{id}/reject', [ReportRequestController::class, 'reject'])->middleware('permission:reports,edit');
+        Route::post('/{id}/complete', [ReportRequestController::class, 'complete'])->middleware('permission:reports,edit');
+    });
+
+    // Reports - Admin y Docentes pueden ver
+    Route::prefix('reports')->middleware('permission:reports,view')->group(function () {
+        Route::get('/stats/reservations', [ReportController::class, 'statsReservations']);
+        Route::get('/stats/equipment', [ReportController::class, 'statsEquipment']);
+        Route::post('/generate', [ReportController::class, 'generate']);
+        Route::get('/', [ReportController::class, 'index']);
+        Route::get('/{id}', [ReportController::class, 'show']);
+        Route::get('/{id}/download', [ReportController::class, 'download']);
+        Route::post('/', [ReportController::class, 'store'])->middleware('permission:reports,create');
+    });
 });
