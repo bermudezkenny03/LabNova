@@ -3,23 +3,50 @@ import { useNavigate } from 'react-router-dom'
 import { authService } from '../services'
 
 const Login: React.FC = () => {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [showPwd, setShowPwd]   = useState(false)
+  const [email, setEmail]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [error, setError]           = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [pwdError, setPwdError]     = useState('')
+  const [loading, setLoading]       = useState(false)
+  const [showPwd, setShowPwd]       = useState(false)
   const navigate = useNavigate()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setEmailError('')
+    setPwdError('')
+
+    let hasError = false
+    if (!email.trim()) { setEmailError('El correo es obligatorio.'); hasError = true }
+    if (!password.trim()) { setPwdError('La contraseña es obligatoria.'); hasError = true }
+    if (hasError) return
+
     setLoading(true)
     try {
       const response = await authService.login({ email, password })
       if (response.token) navigate('/')
     } catch (err: unknown) {
-      const msg = (err as { message?: string })?.message
-      setError(msg || 'Credenciales incorrectas. Intenta de nuevo.')
+      const axiosErr = err as { response?: { status?: number; data?: { message?: string; errors?: Record<string, string[]> } } }
+      const status = axiosErr?.response?.status
+      const apiMsg = axiosErr?.response?.data?.message ?? ''
+      const apiErrors = axiosErr?.response?.data?.errors
+
+      if (status === 422 && apiErrors) {
+        if (apiErrors.email?.length) setEmailError(apiErrors.email[0])
+        if (apiErrors.password?.length) setPwdError(apiErrors.password[0])
+      } else if (status === 429) {
+        setError('Cuenta bloqueada temporalmente por seguridad.')
+      } else if (status === 401) {
+        if (apiMsg.toLowerCase().includes('inhabilitado')) {
+          setError('Usuario inhabilitado.')
+        } else {
+          setError('Credenciales inválidas.')
+        }
+      } else {
+        setError(apiMsg || 'Credenciales inválidas.')
+      }
     } finally {
       setLoading(false)
     }
@@ -138,13 +165,13 @@ const Login: React.FC = () => {
                 <input
                   type="email"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  onChange={e => { setEmail(e.target.value); setEmailError('') }}
                   placeholder="correo@institucion.edu"
-                  required
                   autoComplete="email"
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  className={`w-full pl-10 pr-4 py-2.5 border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${emailError ? 'border-red-400' : 'border-gray-300'}`}
                 />
               </div>
+              {emailError && <p className="text-red-500 text-xs mt-1">{emailError}</p>}
             </div>
 
             {/* Password */}
@@ -161,11 +188,10 @@ const Login: React.FC = () => {
                 <input
                   type={showPwd ? 'text' : 'password'}
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  onChange={e => { setPassword(e.target.value); setPwdError('') }}
                   placeholder="••••••••"
-                  required
                   autoComplete="current-password"
-                  className="w-full pl-10 pr-11 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  className={`w-full pl-10 pr-11 py-2.5 border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${pwdError ? 'border-red-400' : 'border-gray-300'}`}
                 />
                 <button
                   type="button"
@@ -185,6 +211,7 @@ const Login: React.FC = () => {
                   )}
                 </button>
               </div>
+              {pwdError && <p className="text-red-500 text-xs mt-1">{pwdError}</p>}
             </div>
 
             {/* Submit */}

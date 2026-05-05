@@ -13,29 +13,31 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'email'    => 'required|email',
             'password' => 'required|string',
+        ], [
+            'email.required'    => 'El correo es obligatorio.',
+            'email.email'       => 'El formato del correo no es válido.',
+            'password.required' => 'La contraseña es obligatoria.',
         ]);
 
         $user = User::with(['userDetail', 'role'])->where('email', $request->email)->first();
 
-        $modules = [];
-
-        if ($user) {
-            $modules = $user->getModulesWithInfo();
+        if (! $user || ! Hash::check($request->password, $user->password)) {
+            return response()->json(['message' => 'Credenciales inválidas.'], 401);
         }
 
-        if (! $user || ! Hash::check($request->password, $user->password)) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+        if (! $user->status) {
+            return response()->json(['message' => 'Usuario inhabilitado.'], 401);
         }
 
         $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Login successful',
-            'token' => $token,
-            'user' => $user,
-            'modules' => $modules,
+            'message' => 'Login exitoso',
+            'token'   => $token,
+            'user'    => $user,
+            'modules' => $user->getModulesWithInfo(),
         ]);
     }
 

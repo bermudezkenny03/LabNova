@@ -116,6 +116,12 @@ class UserController extends Controller
                 return response()->json(['message' => 'User not found.'], 404);
             }
 
+            if ($user->reservations()->whereIn('status', ['pending', 'approved'])->exists()) {
+                return response()->json([
+                    'message' => 'No se puede eliminar el usuario porque posee reservas activas.',
+                ], 422);
+            }
+
             $user->delete();
 
             return response()->json([

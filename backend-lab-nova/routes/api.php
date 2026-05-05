@@ -10,7 +10,7 @@ use App\Http\Controllers\Api\ReservationController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ReportRequestController;
 
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 Route::middleware('auth:sanctum')->group(function () {
 

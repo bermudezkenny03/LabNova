@@ -19,7 +19,7 @@ class StoreUserRequest extends FormRequest
             'last_name' => 'required|string|max:60',
             'email' => 'nullable|email|unique:users,email',
             'password' => 'required|string|min:6',
-            'phone' => 'nullable|string|max:20',
+            'phone' => 'nullable|string|max:20|unique:users,phone',
             'status' => 'required|boolean',
             'role_id' => 'required|exists:roles,id',
             'gender' => 'nullable|string|max:14',
@@ -27,6 +27,22 @@ class StoreUserRequest extends FormRequest
             'address' => 'nullable|string|max:100',
             'addon_address' => 'nullable|string|max:50',
             'notes' => 'nullable|string',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'name.required'      => 'Todos los campos obligatorios deben completarse.',
+            'last_name.required' => 'Todos los campos obligatorios deben completarse.',
+            'email.email'        => 'Formato de correo inválido.',
+            'email.unique'       => 'El correo ya se encuentra registrado.',
+            'phone.unique'       => 'El teléfono ya se encuentra registrado.',
+            'password.required'  => 'Todos los campos obligatorios deben completarse.',
+            'password.min'       => 'La contraseña debe tener al menos 6 caracteres.',
+            'role_id.required'   => 'Todos los campos obligatorios deben completarse.',
+            'role_id.exists'     => 'Rol no válido.',
+            'status.required'    => 'Todos los campos obligatorios deben completarse.',
         ];
     }
 }

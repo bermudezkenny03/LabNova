@@ -172,12 +172,35 @@ const UsersPage: React.FC = () => {
         showSuccess('Usuario actualizado correctamente.')
       } else {
         await userService.createUser(payload)
-        showSuccess('Usuario creado correctamente.')
+        showSuccess('Usuario registrado correctamente.')
       }
       setShowModal(false)
       loadUsers()
-    } catch {
-      setError('No se pudo guardar el usuario. Verifica los datos.')
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { errors?: Record<string, string[]> } } }
+      const status = axiosErr?.response?.status
+      const apiErrors = axiosErr?.response?.data?.errors
+
+      if (status === 422 && apiErrors) {
+        const inlineErrors: Partial<UserForm> = {}
+        const generalErrors: string[] = []
+
+        if (apiErrors.email?.length) inlineErrors.email = apiErrors.email[0]
+        if (apiErrors.phone?.length) inlineErrors.phone = apiErrors.phone[0]
+        if (apiErrors.role_id?.length) inlineErrors.role_id = apiErrors.role_id[0]
+        if (apiErrors.password?.length) inlineErrors.password = apiErrors.password[0]
+
+        const requiredFields = ['name', 'last_name', 'status'] as const
+        if (requiredFields.some((f) => apiErrors[f]?.length)) {
+          generalErrors.push('Todos los campos obligatorios deben completarse.')
+        }
+
+        if (Object.keys(inlineErrors).length) setFormErrors((prev) => ({ ...prev, ...inlineErrors }))
+        if (generalErrors.length) setError(generalErrors[0])
+        else if (!Object.keys(inlineErrors).length) setError('No se pudo guardar el usuario. Verifica los datos.')
+      } else {
+        setError('No se pudo guardar el usuario. Verifica los datos.')
+      }
     } finally {
       setSaving(false)
     }
@@ -191,8 +214,11 @@ const UsersPage: React.FC = () => {
       setDeleteId(null)
       showSuccess('Usuario eliminado correctamente.')
       loadUsers()
-    } catch {
-      setError('No se pudo eliminar el usuario.')
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } }
+      const msg = axiosErr?.response?.data?.message
+      setDeleteId(null)
+      setError(msg || 'No se pudo eliminar el usuario.')
     } finally {
       setDeleting(false)
     }
@@ -398,9 +424,10 @@ const UsersPage: React.FC = () => {
                 type="text"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.phone ? 'border-red-400' : 'border-gray-200'}`}
                 placeholder="Ej: 3001234567"
               />
+              {formErrors.phone && <p className="text-red-500 text-xs mt-1">{formErrors.phone}</p>}
             </div>
 
             {/* Contrasena */}

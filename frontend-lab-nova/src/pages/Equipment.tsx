@@ -179,7 +179,7 @@ const EquipmentPage: React.FC = () => {
         showSuccess('Equipo actualizado correctamente.')
       } else {
         await equipmentService.createEquipment(payload)
-        showSuccess('Equipo creado correctamente.')
+        showSuccess('Equipo registrado correctamente.')
       }
       setShowModal(false)
       loadEquipment()
@@ -208,8 +208,11 @@ const EquipmentPage: React.FC = () => {
       setDeleteId(null)
       showSuccess('Equipo eliminado correctamente.')
       loadEquipment()
-    } catch {
-      setError('No se pudo eliminar el equipo.')
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } }
+      const msg = axiosErr?.response?.data?.message
+      setDeleteId(null)
+      setError(msg || 'No se pudo eliminar el equipo.')
     } finally {
       setDeleting(false)
     }

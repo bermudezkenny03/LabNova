@@ -35,7 +35,7 @@ class EquipmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Equipo creado correctamente',
+                'message' => 'Equipo registrado correctamente.',
                 'data' => new EquipmentResource($equipment),
             ], 201);
         } catch (\Exception $e) {
@@ -82,7 +82,16 @@ class EquipmentController extends Controller
     public function destroy(int $equipment): JsonResponse
     {
         try {
-            Equipment::findOrFail($equipment)->delete();
+            $model = Equipment::findOrFail($equipment);
+
+            if ($model->reservations()->whereIn('status', ['pending', 'approved'])->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No es posible eliminar un equipo con reservas activas.',
+                ], 422);
+            }
+
+            $model->delete();
 
             return response()->json([
                 'success' => true,

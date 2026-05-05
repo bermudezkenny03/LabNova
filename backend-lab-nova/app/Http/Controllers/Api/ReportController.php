@@ -164,8 +164,16 @@ class ReportController extends Controller
                 'user_activity'   => $this->buildUserActivityData($start, $end),
             };
 
+            if (empty($payload['records'] ?? [])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No existen datos para generar el reporte.',
+                ], 404);
+            }
+
             return response()->json([
                 'success' => true,
+                'message' => 'Reporte generado correctamente.',
                 'data'    => array_merge([
                     'type'         => $type,
                     'start_date'   => $start,
@@ -175,7 +183,7 @@ class ReportController extends Controller
                 ], $payload),
             ]);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Error al generar reporte', 'error' => $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Error durante la generación del reporte.'], 500);
         }
     }
 

@@ -16,12 +16,24 @@ class EquipmentStoreRequest extends FormRequest
     {
         return [
             'category_id' => ['nullable', 'exists:categories,id'],
-            'name' => ['required', 'string', 'max:150'],
-            'code' => ['required', 'string', 'max:50', 'unique:equipment,code'],
+            'name'        => ['required', 'string', 'max:150'],
+            'code'        => ['required', 'string', 'max:50', 'unique:equipment,code'],
             'description' => ['nullable', 'string'],
-            'stock' => ['nullable', 'integer', 'min:1'],
-            'status' => ['nullable', 'in:available,maintenance,out_of_service'],
-            'is_active' => ['nullable', 'boolean'],
+            'stock'       => ['nullable', 'integer', 'min:0'],
+            'status'      => ['nullable', 'in:available,maintenance,out_of_service'],
+            'is_active'   => ['nullable', 'boolean'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'name.required'      => 'El nombre del equipo es obligatorio.',
+            'code.required'      => 'El código del equipo es obligatorio.',
+            'code.unique'        => 'Código de equipo duplicado.',
+            'category_id.exists' => 'Categoría no válida.',
+            'stock.min'          => 'El stock no puede ser negativo.',
+            'stock.integer'      => 'El stock debe ser un número entero.',
         ];
     }
 }

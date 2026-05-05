@@ -39,9 +39,13 @@ class ReportRequestController extends Controller
         try {
             $validated = $request->validate([
                 'type'       => 'required|in:reservations,equipment_usage,user_activity',
-                'start_date' => 'nullable|date',
-                'end_date'   => 'nullable|date|after_or_equal:start_date',
+                'start_date' => 'required|date',
+                'end_date'   => 'required|date|after_or_equal:start_date',
                 'filters'    => 'nullable|array',
+            ], [
+                'start_date.required'     => 'La fecha de inicio es obligatoria.',
+                'end_date.required'       => 'La fecha de fin es obligatoria.',
+                'end_date.after_or_equal' => 'El rango de fechas es inválido.',
             ]);
 
             $validated['user_id'] = $request->user()->id;
@@ -52,7 +56,7 @@ class ReportRequestController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Solicitud creada correctamente',
+                'message' => 'Solicitud generada correctamente.',
                 'data'    => $reportRequest,
             ], 201);
         } catch (\Exception $e) {

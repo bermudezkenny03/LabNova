@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Controller;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Carbon\Carbon;
 
 class ReservationController extends Controller
 {
@@ -64,13 +65,25 @@ class ReservationController extends Controller
                 'start_time'   => 'required|date',
                 'end_time'     => 'required|date|after:start_time',
                 'notes'        => 'nullable|string',
+            ], [
+                'equipment_id.required' => 'El equipo es obligatorio.',
+                'equipment_id.exists'   => 'El equipo seleccionado no existe.',
+                'start_time.required'   => 'La fecha de inicio es obligatoria.',
+                'end_time.required'     => 'La fecha de fin es obligatoria.',
+                'end_time.after'        => 'La hora final debe ser mayor a la inicial.',
             ]);
 
-            // Verificar disponibilidad antes de crear
+            if (Carbon::parse($validated['start_time'])->isPast()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se permiten reservas en fechas pasadas.',
+                ], 422);
+            }
+
             if ($this->hasConflict((int) $validated['equipment_id'], $validated['start_time'], $validated['end_time'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'El equipo no está disponible en el horario seleccionado.',
+                    'message' => 'El equipo ya se encuentra reservado en el horario seleccionado.',
                 ], 422);
             }
 
@@ -89,7 +102,7 @@ class ReservationController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Reserva creada correctamente',
+                'message' => 'Reserva creada exitosamente en estado pendiente.',
                 'data'    => $reservation,
             ], 201);
         } catch (\Exception $e) {
@@ -209,11 +222,17 @@ class ReservationController extends Controller
                 ], 403);
             }
 
-            // Solo se puede cancelar si está pendiente o aprobada
-            if (in_array($reservation->status, ['rejected', 'cancelled', 'completed'])) {
+            if ($reservation->status === 'approved') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Esta reserva no puede ser cancelada en su estado actual'
+                    'message' => 'No es posible cancelar una reserva aprobada.',
+                ], 422);
+            }
+
+            if ($reservation->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta reserva no puede ser cancelada en su estado actual.',
                 ], 400);
             }
 
@@ -226,7 +245,7 @@ class ReservationController extends Controller
                 'description'    => 'Reserva cancelada',
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Reserva cancelada', 'data' => $reservation]);
+            return response()->json(['success' => true, 'message' => 'Reserva cancelada correctamente.', 'data' => $reservation]);
         } catch (ModelNotFoundException) {
             return response()->json(['success' => false, 'message' => 'Reserva no encontrada'], 404);
         } catch (\Exception $e) {

@@ -184,7 +184,7 @@ const ReservationsPage: React.FC = () => {
         end_time: end,
         notes: form.notes || undefined,
       })
-      showSuccess('Reserva creada exitosamente.')
+      showSuccess('Reserva creada exitosamente en estado pendiente.')
       setShowModal(false)
       setForm(EMPTY_FORM)
       setAvailabilityStatus('unknown')
@@ -230,10 +230,12 @@ const ReservationsPage: React.FC = () => {
     try {
       setActionLoading(id)
       await reservationService.cancelReservation(id)
-      showSuccess('Reserva cancelada.')
+      showSuccess('Reserva cancelada correctamente.')
       loadReservations(currentPage)
-    } catch {
-      setError('No se pudo cancelar la reserva.')
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } }
+      const msg = axiosErr?.response?.data?.message
+      setError(msg || 'No se pudo cancelar la reserva.')
     } finally {
       setActionLoading(null)
     }
@@ -374,9 +376,8 @@ const ReservationsPage: React.FC = () => {
                             </ProtectedButton>
                           </>
                         )}
-                        {(r.status === 'pending' || r.status === 'approved') && (
+                        {r.status === 'pending' && (
                           r.user_id === user?.id ? (
-                            // El propietario siempre puede cancelar su propia reserva
                             <button
                               onClick={() => handleCancel(r.id)}
                               disabled={actionLoading === r.id}
@@ -385,7 +386,6 @@ const ReservationsPage: React.FC = () => {
                               Cancelar
                             </button>
                           ) : (
-                            // Admin/Lab Manager pueden cancelar reservas de otros
                             <ProtectedButton
                               permission={{ module: 'reservations', action: 'edit' }}
                               onClick={() => handleCancel(r.id)}
