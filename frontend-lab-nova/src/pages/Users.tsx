@@ -170,6 +170,7 @@ const UsersPage: React.FC = () => {
     if (!editingId && !form.password.trim()) errors.password = 'La contrasena es requerida'
     else if (form.password && form.password.length < 6) errors.password = 'Minimo 6 caracteres'
     if (!form.role_id) errors.role_id = 'El rol es requerido'
+    if (!form.gender_id) errors.gender_id = 'El género es requerido'
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -495,17 +496,18 @@ const UsersPage: React.FC = () => {
 
             {/* Género */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Género</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Género *</label>
               <select
                 value={form.gender_id}
                 onChange={(e) => setForm({ ...form, gender_id: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.gender_id ? 'border-red-400' : 'border-gray-200'}`}
               >
-                <option value="">Sin especificar</option>
+                <option value="">Seleccionar género...</option>
                 {genders.map((g) => (
                   <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
               </select>
+              {formErrors.gender_id && <p className="text-red-500 text-xs mt-1">{formErrors.gender_id}</p>}
             </div>
 
             {/* Estado */}
