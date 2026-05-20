@@ -6,15 +6,15 @@ use App\Models\Category;
 use App\Models\Equipment;
 use App\Models\EquipmentStatus;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class EquipmentSeeder extends Seeder
 {
     public function run(): void
     {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        Schema::disableForeignKeyConstraints();
         Equipment::truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        Schema::enableForeignKeyConstraints();
 
         $computers = Category::where('name', 'Computadores')->first();
         $projectors = Category::where('name', 'Proyectores')->first();
