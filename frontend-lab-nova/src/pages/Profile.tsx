@@ -48,7 +48,7 @@ const EMPTY_PASSWORD: PasswordForm = {
 }
 
 const ProfilePage: React.FC = () => {
-  const { user: authUser } = useAuth()
+  useAuth()
 
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [genders, setGenders] = useState<GenderOption[]>([])
