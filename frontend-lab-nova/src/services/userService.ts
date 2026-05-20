@@ -48,10 +48,16 @@ export const userService = {
     return response.data.data
   },
 
-  // GET /users/general-data → { message, roles: [...] }
-  getGeneralData: async (): Promise<{ roles: Array<{ id: number; name: string; description: string }> }> => {
+  // GET /users/general-data → { message, roles: [...], genders: [...] }
+  getGeneralData: async (): Promise<{
+    roles: Array<{ id: number; name: string; description: string }>;
+    genders: Array<{ id: number; name: string; code: string }>;
+  }> => {
     const response = await apiClient.get('/users/general-data')
-    return { roles: response.data.roles ?? [] }
+    return {
+      roles: response.data.roles ?? [],
+      genders: response.data.genders ?? [],
+    }
   },
 
   searchUsers: async (query: string): Promise<User[]> => {
