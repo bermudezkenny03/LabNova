@@ -6,14 +6,17 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:3000',
-        'http://localhost:4000',
-        'http://localhost:5173',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:4000',
-        'http://127.0.0.1:5173',
-    ],
+    'allowed_origins' => array_values(array_filter(array_merge(
+        // Orígenes locales para desarrollo
+        [
+            'http://localhost:3000',
+            'http://localhost:5173',
+            'http://127.0.0.1:5173',
+        ],
+        // Orígenes de producción desde variable de entorno (separados por coma)
+        // Ejemplo: CORS_ALLOWED_ORIGINS=https://labnova.vercel.app,https://labnova-git-main.vercel.app
+        array_map('trim', explode(',', env('CORS_ALLOWED_ORIGINS', '')))
+    ))),
 
     'allowed_origins_patterns' => [],
 

@@ -232,6 +232,7 @@ class PermissionSeeder extends Seeder
 
         $assignPermissions($teacher, [
             $dashboard,
+            $equipment,        // necesita ver equipos para crear reservas
             $reservations,
             $reportRequests,
             $reports,
@@ -239,6 +240,7 @@ class PermissionSeeder extends Seeder
 
         $assignPermissions($student, [
             $dashboard,
+            $equipment,   // necesita ver equipos para poder crear reservas
             $reservations,
         ], $permissionList->whereIn('slug', ['view', 'create']));
 

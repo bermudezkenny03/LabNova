@@ -2,6 +2,12 @@ import React, { useEffect, useState } from 'react'
 import { useAuth } from '../hooks'
 import apiClient from '../services/api'
 
+interface GenderOption {
+  id: number
+  name: string
+  code: string
+}
+
 interface ProfileData {
   id: number
   name: string
@@ -10,7 +16,8 @@ interface ProfileData {
   phone: string
   role?: { name: string; description: string }
   userDetail?: {
-    gender?: string
+    gender_id?: number
+    gender?: GenderOption
     birthdate?: string
     address?: string
     addon_address?: string
@@ -22,7 +29,7 @@ interface ProfileForm {
   name: string
   last_name: string
   phone: string
-  gender: string
+  gender_id: string
   birthdate: string
   address: string
   addon_address: string
@@ -40,24 +47,18 @@ const EMPTY_PASSWORD: PasswordForm = {
   password_confirmation: '',
 }
 
-const GENDER_OPTIONS = [
-  { value: '', label: 'Sin especificar' },
-  { value: 'Male', label: 'Masculino' },
-  { value: 'Female', label: 'Femenino' },
-  { value: 'Other', label: 'Otro' },
-]
-
 const ProfilePage: React.FC = () => {
   const { user: authUser } = useAuth()
 
   const [profile, setProfile] = useState<ProfileData | null>(null)
+  const [genders, setGenders] = useState<GenderOption[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingPwd, setSavingPwd] = useState(false)
 
   const [form, setForm] = useState<ProfileForm>({
     name: '', last_name: '', phone: '',
-    gender: '', birthdate: '', address: '', addon_address: '',
+    gender_id: '', birthdate: '', address: '', addon_address: '',
   })
   const [pwdForm, setPwdForm] = useState<PasswordForm>(EMPTY_PASSWORD)
 
@@ -80,16 +81,20 @@ const ProfilePage: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await apiClient.get('/profile')
-        const data: ProfileData = res.data.data
+        const [profileRes, gendersRes] = await Promise.all([
+          apiClient.get('/profile'),
+          apiClient.get('/genders'),
+        ])
+        const data: ProfileData = profileRes.data.data
         setProfile(data)
+        setGenders(gendersRes.data ?? [])
         setForm({
-          name:         data.name ?? '',
-          last_name:    data.last_name ?? '',
-          phone:        data.phone ?? '',
-          gender:       data.userDetail?.gender ?? '',
-          birthdate:    data.userDetail?.birthdate ?? '',
-          address:      data.userDetail?.address ?? '',
+          name:          data.name ?? '',
+          last_name:     data.last_name ?? '',
+          phone:         data.phone ?? '',
+          gender_id:     data.userDetail?.gender_id ? String(data.userDetail.gender_id) : '',
+          birthdate:     data.userDetail?.birthdate ?? '',
+          address:       data.userDetail?.address ?? '',
           addon_address: data.userDetail?.addon_address ?? '',
         })
       } catch {
@@ -106,7 +111,11 @@ const ProfilePage: React.FC = () => {
     try {
       setSaving(true)
       setErrorMsg(null)
-      const res = await apiClient.put('/profile', form)
+      const payload = {
+        ...form,
+        gender_id: form.gender_id ? Number(form.gender_id) : null,
+      }
+      const res = await apiClient.put('/profile', payload)
       setProfile(res.data.data)
       // Actualizar localStorage para que el header refleje el nuevo nombre
       const stored = localStorage.getItem('user')
@@ -258,12 +267,13 @@ const ProfilePage: React.FC = () => {
               <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Género</label>
                 <select
-                  value={form.gender}
-                  onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                  value={form.gender_id}
+                  onChange={(e) => setForm({ ...form, gender_id: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 >
-                  {GENDER_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                  <option value="">Sin especificar</option>
+                  {genders.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
                 </select>
               </div>

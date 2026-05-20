@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\UserDetail;
 use App\Models\User;
 use App\Models\Role;
+use App\Models\Gender;
 
 class UserController extends Controller
 {
@@ -87,6 +88,9 @@ class UserController extends Controller
             }
 
             $validated = $request->validated();
+            if (empty($validated['password'])) {
+                unset($validated['password']);
+            }
             $user->updateUser($validated);
 
             if ($user->userDetail) {
@@ -116,7 +120,7 @@ class UserController extends Controller
                 return response()->json(['message' => 'User not found.'], 404);
             }
 
-            if ($user->reservations()->whereIn('status', ['pending', 'approved'])->exists()) {
+            if ($user->reservations()->whereHas('reservationStatus', fn($q) => $q->whereIn('code', ['pending', 'approved']))->exists()) {
                 return response()->json([
                     'message' => 'No se puede eliminar el usuario porque posee reservas activas.',
                 ], 422);
@@ -138,11 +142,13 @@ class UserController extends Controller
     public function getGeneralData()
     {
         try {
-            $roles = Role::ordered()->get();
+            $roles   = Role::ordered()->get();
+            $genders = Gender::orderBy('sort_order')->get(['id', 'name', 'code']);
 
             return response()->json([
                 'message' => 'General data retrieved successfully',
-                'roles' => $roles,
+                'roles'   => $roles,
+                'genders' => $genders,
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -150,10 +156,5 @@ class UserController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
-
-        return response()->json([
-            'message' => 'General data retrieved successfully',
-            'roles' => $roles,
-        ]);
     }
 }

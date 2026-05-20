@@ -69,4 +69,14 @@ export const equipmentService = {
     })
     return response.data.data ?? []
   },
+
+  // POST /equipment/:id/image — sube o reemplaza la imagen principal
+  uploadEquipmentImage: async (id: number, image: File): Promise<Equipment> => {
+    const formData = new FormData()
+    formData.append('image', image)
+    const response = await apiClient.post(`/equipment/${id}/image`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data.data
+  },
 }

@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Equipment;
+use App\Models\EquipmentImage;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EquipmentResource;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -15,7 +18,7 @@ class EquipmentController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $equipment = Equipment::with(['category', 'images'])->latest()->get();
+            $equipment = Equipment::with(['category', 'images', 'equipmentStatus'])->latest()->get();
 
             return response()->json([
                 'success' => true,
@@ -31,7 +34,7 @@ class EquipmentController extends Controller
     {
         try {
             $equipment = Equipment::create($request->validated());
-            $equipment->load(['category', 'images']);
+            $equipment->load(['category', 'images', 'equipmentStatus']);
 
             return response()->json([
                 'success' => true,
@@ -46,7 +49,7 @@ class EquipmentController extends Controller
     public function show(int $equipment): JsonResponse
     {
         try {
-            $equipment = Equipment::with(['category', 'images', 'reservations'])->findOrFail($equipment);
+            $equipment = Equipment::with(['category', 'images', 'reservations', 'equipmentStatus'])->findOrFail($equipment);
 
             return response()->json([
                 'success' => true,
@@ -65,7 +68,7 @@ class EquipmentController extends Controller
         try {
             $model = Equipment::findOrFail($equipment);
             $model->update($request->validated());
-            $model->load(['category', 'images']);
+            $model->load(['category', 'images', 'equipmentStatus']);
 
             return response()->json([
                 'success' => true,
@@ -79,12 +82,48 @@ class EquipmentController extends Controller
         }
     }
 
+    public function uploadImage(Request $request, int $id): JsonResponse
+    {
+        try {
+            $request->validate([
+                'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            ], [
+                'image.required' => 'La imagen es obligatoria.',
+                'image.image'    => 'El archivo debe ser una imagen.',
+                'image.mimes'    => 'Formatos permitidos: jpeg, png, jpg, gif, webp.',
+                'image.max'      => 'La imagen no puede superar 2 MB.',
+            ]);
+
+            $model = Equipment::findOrFail($id);
+
+            // Eliminar imagen primaria anterior
+            $primary = $model->images()->where('is_primary', true)->first();
+            if ($primary) {
+                Storage::disk('public')->delete($primary->image_path);
+                $primary->delete();
+            }
+
+            EquipmentImage::saveImages($request->file('image'), $model->id);
+            $model->load(['category', 'images', 'equipmentStatus']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Imagen actualizada correctamente.',
+                'data'    => new EquipmentResource($model),
+            ]);
+        } catch (ModelNotFoundException) {
+            return response()->json(['success' => false, 'message' => 'Equipo no encontrado'], 404);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Error al subir imagen', 'error' => $e->getMessage()], 500);
+        }
+    }
+
     public function destroy(int $equipment): JsonResponse
     {
         try {
             $model = Equipment::findOrFail($equipment);
 
-            if ($model->reservations()->whereIn('status', ['pending', 'approved'])->exists()) {
+            if ($model->reservations()->whereHas('reservationStatus', fn($q) => $q->whereIn('code', ['pending', 'approved']))->exists()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No es posible eliminar un equipo con reservas activas.',

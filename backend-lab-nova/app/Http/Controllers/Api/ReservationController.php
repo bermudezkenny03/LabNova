@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Reservation;
-use App\Models\ReservationLog;
+use App\Models\ReservationStatus;
+use App\Services\ReservationLogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Controller;
@@ -12,6 +13,23 @@ use Carbon\Carbon;
 
 class ReservationController extends Controller
 {
+    /**
+     * Servicio para gestionar logs de reservas
+     *
+     * @var \App\Services\ReservationLogService
+     */
+    private ReservationLogService $logService;
+
+    /**
+     * Constructor: inyectar dependencias
+     *
+     * @param \App\Services\ReservationLogService $logService
+     */
+    public function __construct(ReservationLogService $logService)
+    {
+        $this->logService = $logService;
+    }
+
     public function index(Request $request): JsonResponse
     {
         try {
@@ -20,13 +38,12 @@ class ReservationController extends Controller
 
             // Estudiantes solo ven sus propias reservas
             if ($user->role->name === 'Estudiante') {
-                $reservations = Reservation::with(['user', 'equipment', 'approver'])
+                $reservations = Reservation::with(['user', 'equipment.equipmentStatus', 'approver', 'reservationStatus'])
                     ->where('user_id', $user->id)
                     ->latest()
                     ->paginate($perPage);
             } else {
-                // Admin, Lab Manager y Docente ven todas
-                $reservations = Reservation::with(['user', 'equipment', 'approver'])
+                $reservations = Reservation::with(['user', 'equipment.equipmentStatus', 'approver', 'reservationStatus'])
                     ->latest()
                     ->paginate($perPage);
             }
@@ -52,28 +69,26 @@ class ReservationController extends Controller
         try {
             $user = $request->user();
 
-            // Estudiantes solo pueden crear para sí mismos
-            if ($user->role->name === 'Estudiante' && $request->get('user_id') && $request->get('user_id') != $user->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No tienes permiso para crear reservas para otros usuarios'
-                ], 403);
-            }
-
             $validated = $request->validate([
                 'equipment_id' => 'required|exists:equipment,id',
+                'user_id'      => 'nullable|integer|exists:users,id',
                 'start_time'   => 'required|date',
                 'end_time'     => 'required|date|after:start_time',
                 'notes'        => 'nullable|string',
             ], [
                 'equipment_id.required' => 'El equipo es obligatorio.',
                 'equipment_id.exists'   => 'El equipo seleccionado no existe.',
+                'user_id.exists'        => 'El usuario seleccionado no existe.',
                 'start_time.required'   => 'La fecha de inicio es obligatoria.',
                 'end_time.required'     => 'La fecha de fin es obligatoria.',
                 'end_time.after'        => 'La hora final debe ser mayor a la inicial.',
             ]);
 
-            if (Carbon::parse($validated['start_time'])->isPast()) {
+            $startTime = Carbon::parse($validated['start_time'])->setTimezone(config('app.timezone'));
+            $now = now();
+
+            // Permitir reservas con 1 minuto de margen para evitar problemas de precisión
+            if ($startTime->isBefore($now->copy()->subMinute())) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No se permiten reservas en fechas pasadas.',
@@ -87,18 +102,40 @@ class ReservationController extends Controller
                 ], 422);
             }
 
-            $validated['user_id'] = $request->user()->id;
-            $validated['status']  = 'pending';
+            // Admin/Encargado pueden crear reservas a nombre de otro usuario
+            $isAdmin = in_array($user->role->name, ['Super Admin', 'Administrador', 'Encargado de Laboratorio']);
+            if ($isAdmin && !empty($validated['user_id'])) {
+                $targetUserId = (int) $validated['user_id'];
+            } elseif (!$isAdmin && !empty($validated['user_id']) && $validated['user_id'] != $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para crear reservas para otros usuarios',
+                ], 403);
+            } else {
+                $targetUserId = $user->id;
+            }
+            $validated['user_id'] = $targetUserId;
+
+            // Obtener el ID del estado 'pending'
+            $pendingStatus = ReservationStatus::where('code', 'pending')->first();
+            if (!$pendingStatus) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Estado de reserva no disponible.',
+                ], 500);
+            }
+            $validated['reservation_status_id'] = $pendingStatus->id;
 
             $reservation = Reservation::create($validated);
-            $reservation->load(['user', 'equipment']);
+            $reservation->load(['user', 'equipment.equipmentStatus', 'reservationStatus']);
 
-            ReservationLog::create([
-                'reservation_id' => $reservation->id,
-                'user_id'        => $request->user()->id,
-                'action'         => 'created',
-                'description'    => 'Reserva creada',
-            ]);
+            // Registrar en auditoría usando el servicio
+            $this->logService->logReservationAction(
+                reservationId: $reservation->id,
+                actionCode: 'created',
+                userId: $request->user()->id,
+                description: 'Reserva creada por estudiante'
+            );
 
             return response()->json([
                 'success' => true,
@@ -113,7 +150,7 @@ class ReservationController extends Controller
     public function show(int $id): JsonResponse
     {
         try {
-            $reservation = Reservation::with(['user', 'equipment', 'approver', 'logs'])->findOrFail($id);
+            $reservation = Reservation::with(['user', 'equipment.equipmentStatus', 'approver', 'reservationStatus', 'logs'])->findOrFail($id);
 
             return response()->json(['success' => true, 'message' => 'Detalle de reserva', 'data' => $reservation]);
         } catch (ModelNotFoundException) {
@@ -161,18 +198,42 @@ class ReservationController extends Controller
     {
         try {
             $reservation = Reservation::findOrFail($id);
+
+            // Verificar que no exista otra reserva aprobada o pendiente que se solape
+            if ($this->hasConflict(
+                $reservation->equipment_id,
+                $reservation->start_time,
+                $reservation->end_time,
+                excludeId: $id
+            )) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede aprobar: el equipo ya tiene una reserva activa en el mismo horario.',
+                ], 422);
+            }
+
+            // Obtener el estado 'approved'
+            $approvedStatus = ReservationStatus::where('code', 'approved')->first();
+            if (!$approvedStatus) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Estado de reserva no disponible.',
+                ], 500);
+            }
+
             $reservation->update([
-                'status'      => 'approved',
-                'approved_by' => $request->user()->id,
-                'approved_at' => now(),
+                'reservation_status_id' => $approvedStatus->id,
+                'approved_by'           => $request->user()->id,
+                'approved_at'           => now(),
             ]);
 
-            ReservationLog::create([
-                'reservation_id' => $reservation->id,
-                'user_id'        => $request->user()->id,
-                'action'         => 'approved',
-                'description'    => 'Reserva aprobada',
-            ]);
+            // Registrar en auditoría usando el servicio
+            $this->logService->logReservationAction(
+                reservationId: $reservation->id,
+                actionCode: 'approved',
+                userId: $request->user()->id,
+                description: 'Reserva aprobada'
+            );
 
             return response()->json(['success' => true, 'message' => 'Reserva aprobada', 'data' => $reservation]);
         } catch (ModelNotFoundException) {
@@ -188,17 +249,28 @@ class ReservationController extends Controller
             $request->validate(['reason' => 'required|string']);
 
             $reservation = Reservation::findOrFail($id);
+
+            // Obtener el estado 'rejected'
+            $rejectedStatus = ReservationStatus::where('code', 'rejected')->first();
+            if (!$rejectedStatus) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Estado de reserva no disponible.',
+                ], 500);
+            }
+
             $reservation->update([
-                'status'           => 'rejected',
-                'rejection_reason' => $request->reason,
+                'reservation_status_id' => $rejectedStatus->id,
+                'rejection_reason'      => $request->reason,
             ]);
 
-            ReservationLog::create([
-                'reservation_id' => $reservation->id,
-                'user_id'        => $request->user()->id,
-                'action'         => 'rejected',
-                'description'    => 'Reserva rechazada: ' . $request->reason,
-            ]);
+            // Registrar en auditoría usando el servicio
+            $this->logService->logReservationAction(
+                reservationId: $reservation->id,
+                actionCode: 'rejected',
+                userId: $request->user()->id,
+                description: 'Reserva rechazada: ' . $request->reason
+            );
 
             return response()->json(['success' => true, 'message' => 'Reserva rechazada', 'data' => $reservation]);
         } catch (ModelNotFoundException) {
@@ -212,7 +284,7 @@ class ReservationController extends Controller
     {
         try {
             $user = $request->user();
-            $reservation = Reservation::findOrFail($id);
+            $reservation = Reservation::with(['reservationStatus', 'user', 'equipment.equipmentStatus'])->findOrFail($id);
 
             // Solo el propietario o admin/lab manager pueden cancelar
             if ($reservation->user_id !== $user->id && !in_array($user->role->name, ['Super Admin', 'Administrador', 'Encargado de Laboratorio'])) {
@@ -222,28 +294,40 @@ class ReservationController extends Controller
                 ], 403);
             }
 
-            if ($reservation->status === 'approved') {
+            $currentStatusCode = $reservation->reservationStatus?->code;
+
+            if ($currentStatusCode === 'approved') {
                 return response()->json([
                     'success' => false,
                     'message' => 'No es posible cancelar una reserva aprobada.',
                 ], 422);
             }
 
-            if ($reservation->status !== 'pending') {
+            if ($currentStatusCode !== 'pending') {
                 return response()->json([
                     'success' => false,
                     'message' => 'Esta reserva no puede ser cancelada en su estado actual.',
                 ], 400);
             }
 
-            $reservation->update(['status' => 'cancelled']);
+            // Obtener el estado 'cancelled'
+            $cancelledStatus = ReservationStatus::where('code', 'cancelled')->first();
+            if (!$cancelledStatus) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Estado de reserva no disponible.',
+                ], 500);
+            }
 
-            ReservationLog::create([
-                'reservation_id' => $reservation->id,
-                'user_id'        => $request->user()->id,
-                'action'         => 'cancelled',
-                'description'    => 'Reserva cancelada',
-            ]);
+            $reservation->update(['reservation_status_id' => $cancelledStatus->id]);
+
+            // Registrar en auditoría usando el servicio
+            $this->logService->logReservationAction(
+                reservationId: $reservation->id,
+                actionCode: 'cancelled',
+                userId: $request->user()->id,
+                description: 'Reserva cancelada'
+            );
 
             return response()->json(['success' => true, 'message' => 'Reserva cancelada correctamente.', 'data' => $reservation]);
         } catch (ModelNotFoundException) {
@@ -297,16 +381,23 @@ class ReservationController extends Controller
      */
     private function hasConflict(int $equipmentId, string $start, string $end, ?int $excludeId = null): bool
     {
+        // Convertir a Carbon y a la zona horaria de la aplicación
+        $startTime = Carbon::parse($start)->setTimezone(config('app.timezone'));
+        $endTime = Carbon::parse($end)->setTimezone(config('app.timezone'));
+
+        // Obtener IDs de estados 'pending' y 'approved'
+        $statusIds = ReservationStatus::whereIn('code', ['pending', 'approved'])->pluck('id')->toArray();
+
         return Reservation::where('equipment_id', $equipmentId)
-            ->whereIn('status', ['pending', 'approved'])
+            ->whereIn('reservation_status_id', $statusIds)
             ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
-            ->where(function ($q) use ($start, $end) {
-                $q->whereBetween('start_time', [$start, $end])
-                  ->orWhereBetween('end_time', [$start, $end])
-                  ->orWhere(function ($sub) use ($start, $end) {
+            ->where(function ($q) use ($startTime, $endTime) {
+                $q->whereBetween('start_time', [$startTime, $endTime])
+                  ->orWhereBetween('end_time', [$startTime, $endTime])
+                  ->orWhere(function ($sub) use ($startTime, $endTime) {
                       // Reserva existente envuelve completamente el rango solicitado
-                      $sub->where('start_time', '<=', $start)
-                          ->where('end_time', '>=', $end);
+                      $sub->where('start_time', '<=', $startTime)
+                          ->where('end_time', '>=', $endTime);
                   });
             })->exists();
     }

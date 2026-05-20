@@ -7,6 +7,13 @@ export interface Role {
   updated_at: string
 }
 
+// Gender Types — lookup table (normalización)
+export interface Gender {
+  id: number
+  name: string
+  code: string
+}
+
 // User Types — fields match backend User model + StoreUserRequest
 export interface User {
   id: number
@@ -17,11 +24,6 @@ export interface User {
   status?: boolean
   role_id?: number
   role?: Role
-  gender?: string
-  birthdate?: string
-  address?: string
-  addon_address?: string
-  notes?: string
   userDetail?: UserDetail
   created_at: string
   updated_at: string
@@ -30,9 +32,12 @@ export interface User {
 export interface UserDetail {
   id: number
   user_id: number
-  phone: string
-  department: string
-  position: string
+  gender_id?: number
+  gender?: Gender
+  birthdate?: string
+  address?: string
+  addon_address?: string
+  notes?: string
   created_at: string
   updated_at: string
 }
@@ -67,7 +72,10 @@ export interface Equipment {
 export interface EquipmentImage {
   id: number
   equipment_id: number
+  image_path?: string
+  image_name?: string
   image_url: string
+  is_primary?: boolean
   created_at: string
   updated_at: string
 }

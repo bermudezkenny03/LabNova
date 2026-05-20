@@ -15,14 +15,14 @@ class StoreUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|max:50',
-            'last_name' => 'required|string|max:60',
+            'name' => ['required', 'string', 'max:50', 'regex:/^[\p{L}\s]+$/u'],
+            'last_name' => ['required', 'string', 'max:60', 'regex:/^[\p{L}\s]+$/u'],
             'email' => 'nullable|email|unique:users,email',
             'password' => 'required|string|min:6',
             'phone' => 'nullable|string|max:20|unique:users,phone',
             'status' => 'required|boolean',
             'role_id' => 'required|exists:roles,id',
-            'gender' => 'nullable|string|max:14',
+            'gender_id' => 'nullable|exists:genders,id',
             'birthdate' => 'nullable|date',
             'address' => 'nullable|string|max:100',
             'addon_address' => 'nullable|string|max:50',
@@ -34,7 +34,9 @@ class StoreUserRequest extends FormRequest
     {
         return [
             'name.required'      => 'Todos los campos obligatorios deben completarse.',
+            'name.regex'         => 'El nombre solo puede contener letras y espacios.',
             'last_name.required' => 'Todos los campos obligatorios deben completarse.',
+            'last_name.regex'    => 'El apellido solo puede contener letras y espacios.',
             'email.email'        => 'Formato de correo inválido.',
             'email.unique'       => 'El correo ya se encuentra registrado.',
             'phone.unique'       => 'El teléfono ya se encuentra registrado.',

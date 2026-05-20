@@ -40,9 +40,13 @@ const Login: React.FC = () => {
         setError('Cuenta bloqueada temporalmente por seguridad.')
       } else if (status === 401) {
         if (apiMsg.toLowerCase().includes('inhabilitado')) {
-          setError('Usuario inhabilitado.')
+          setError(apiMsg)
+        } else if (apiMsg.toLowerCase().includes('correo') || apiMsg.toLowerCase().includes('registrado')) {
+          setEmailError(apiMsg)
+        } else if (apiMsg.toLowerCase().includes('contraseña')) {
+          setPwdError(apiMsg)
         } else {
-          setError('Credenciales inválidas.')
+          setError(apiMsg || 'Credenciales inválidas.')
         }
       } else {
         setError(apiMsg || 'Credenciales inválidas.')
@@ -236,8 +240,11 @@ const Login: React.FC = () => {
 
           <p className="mt-6 text-center text-xs text-gray-400">
             ¿Problemas para acceder?{' '}
-            <a href="#" className="text-blue-600 hover:underline font-medium">
-              Contacta al administrador
+            <a
+              href={`mailto:${import.meta.env.VITE_ADMIN_EMAIL ?? ''}?subject=Problema%20de%20acceso%20-%20LabNova&body=Hola%2C%20necesito%20ayuda%20para%20acceder%20al%20sistema%20LabNova.%0A%0ACorreo%3A%20${encodeURIComponent(email)}`}
+              className="text-blue-600 hover:underline font-medium"
+            >
+              escribenos a admin@labnova.com
             </a>
           </p>
         </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import Swal from 'sweetalert2'
 import { userService } from '../services/userService'
 import { User } from '../types'
 import { Modal } from '../components/common/Modal'
@@ -11,6 +12,12 @@ interface Role {
   description: string
 }
 
+interface Gender {
+  id: number
+  name: string
+  code: string
+}
+
 interface UserForm {
   name: string
   last_name: string
@@ -19,6 +26,7 @@ interface UserForm {
   phone: string
   role_id: string
   status: string
+  gender_id: string
 }
 
 const EMPTY_FORM: UserForm = {
@@ -29,10 +37,11 @@ const EMPTY_FORM: UserForm = {
   phone: '',
   role_id: '',
   status: '1',
+  gender_id: '',
 }
 
 const UsersPage: React.FC = () => {
-  const { canCreate, canEdit, canDelete, canView } = usePermissions()
+  const { canView } = usePermissions()
 
   // Si no tiene permiso para ver usuarios, mostrar mensaje de acceso denegado
   if (!canView('users')) {
@@ -50,6 +59,7 @@ const UsersPage: React.FC = () => {
 
   const [users, setUsers] = useState<User[]>([])
   const [roles, setRoles] = useState<Role[]>([])
+  const [genders, setGenders] = useState<Gender[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -64,7 +74,6 @@ const UsersPage: React.FC = () => {
   const [form, setForm] = useState<UserForm>(EMPTY_FORM)
   const [formErrors, setFormErrors] = useState<Partial<UserForm>>({})
 
-  const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   const showSuccess = (msg: string) => {
@@ -91,8 +100,9 @@ const UsersPage: React.FC = () => {
     try {
       const data = await userService.getGeneralData()
       setRoles(data.roles)
+      setGenders(data.genders ?? [])
     } catch {
-      // roles are optional — form can still work
+      // roles/genders are optional — form can still work
     }
   }, [])
 
@@ -135,15 +145,26 @@ const UsersPage: React.FC = () => {
       phone: user.phone ?? '',
       role_id: user.role_id ? String(user.role_id) : (user.role?.id ? String(user.role.id) : ''),
       status: user.status === false ? '0' : '1',
+      gender_id: user.userDetail?.gender_id ? String(user.userDetail.gender_id) : '',
     })
     setFormErrors({})
     setShowModal(true)
   }
 
+  const ONLY_LETTERS = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ\s]+$/
+
   const validate = (): boolean => {
     const errors: Partial<UserForm> = {}
-    if (!form.name.trim()) errors.name = 'El nombre es requerido'
-    if (!form.last_name.trim()) errors.last_name = 'El apellido es requerido'
+    if (!form.name.trim()) {
+      errors.name = 'El nombre es requerido'
+    } else if (!ONLY_LETTERS.test(form.name.trim())) {
+      errors.name = 'El nombre solo puede contener letras y espacios'
+    }
+    if (!form.last_name.trim()) {
+      errors.last_name = 'El apellido es requerido'
+    } else if (!ONLY_LETTERS.test(form.last_name.trim())) {
+      errors.last_name = 'El apellido solo puede contener letras y espacios'
+    }
     if (!form.email.trim()) errors.email = 'El email es requerido'
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Email invalido'
     if (!editingId && !form.password.trim()) errors.password = 'La contrasena es requerida'
@@ -161,9 +182,10 @@ const UsersPage: React.FC = () => {
         name: form.name.trim(),
         last_name: form.last_name.trim(),
         email: form.email.trim(),
-        phone: form.phone.trim() || undefined,
+        phone: form.phone.trim() || null,
         role_id: Number(form.role_id),
         status: form.status === '1',
+        gender_id: form.gender_id ? Number(form.gender_id) : null,
       }
       if (form.password) payload.password = form.password
 
@@ -185,13 +207,14 @@ const UsersPage: React.FC = () => {
         const inlineErrors: Partial<UserForm> = {}
         const generalErrors: string[] = []
 
+        if (apiErrors.name?.length) inlineErrors.name = apiErrors.name[0]
+        if (apiErrors.last_name?.length) inlineErrors.last_name = apiErrors.last_name[0]
         if (apiErrors.email?.length) inlineErrors.email = apiErrors.email[0]
         if (apiErrors.phone?.length) inlineErrors.phone = apiErrors.phone[0]
         if (apiErrors.role_id?.length) inlineErrors.role_id = apiErrors.role_id[0]
         if (apiErrors.password?.length) inlineErrors.password = apiErrors.password[0]
 
-        const requiredFields = ['name', 'last_name', 'status'] as const
-        if (requiredFields.some((f) => apiErrors[f]?.length)) {
+        if (apiErrors.status?.length) {
           generalErrors.push('Todos los campos obligatorios deben completarse.')
         }
 
@@ -206,18 +229,26 @@ const UsersPage: React.FC = () => {
     }
   }
 
-  const handleDelete = async () => {
-    if (!deleteId) return
+  const handleDelete = async (id: number) => {
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: '¡No podrás revertir esto!',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: '¡Sí, eliminarlo!',
+      cancelButtonText: 'Cancelar',
+    })
+    if (!result.isConfirmed) return
     try {
       setDeleting(true)
-      await userService.deleteUser(deleteId)
-      setDeleteId(null)
+      await userService.deleteUser(id)
       showSuccess('Usuario eliminado correctamente.')
       loadUsers()
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } }
       const msg = axiosErr?.response?.data?.message
-      setDeleteId(null)
       setError(msg || 'No se pudo eliminar el usuario.')
     } finally {
       setDeleting(false)
@@ -355,8 +386,9 @@ const UsersPage: React.FC = () => {
                       </ProtectedButton>
                       <ProtectedButton
                         permission={{ module: 'users', action: 'delete' }}
-                        onClick={() => setDeleteId(user.id)}
-                        className="text-red-500 hover:text-red-700 text-xs font-medium"
+                        onClick={() => handleDelete(user.id)}
+                        disabled={deleting}
+                        className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-40"
                       >
                         Eliminar
                       </ProtectedButton>
@@ -461,6 +493,21 @@ const UsersPage: React.FC = () => {
               {formErrors.role_id && <p className="text-red-500 text-xs mt-1">{formErrors.role_id}</p>}
             </div>
 
+            {/* Género */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Género</label>
+              <select
+                value={form.gender_id}
+                onChange={(e) => setForm({ ...form, gender_id: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+              >
+                <option value="">Sin especificar</option>
+                {genders.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Estado */}
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
@@ -509,31 +556,6 @@ const UsersPage: React.FC = () => {
         </Modal>
       )}
 
-      {/* Confirmar eliminacion */}
-      {deleteId !== null && (
-        <Modal title="Confirmar Eliminacion" onClose={() => setDeleteId(null)} size="sm">
-          <div className="space-y-4">
-            <p className="text-gray-600 text-sm">
-              ¿Estas seguro de que deseas eliminar este usuario? Esta accion no se puede deshacer.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-              >
-                {deleting ? 'Eliminando...' : 'Eliminar'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   )
 }
