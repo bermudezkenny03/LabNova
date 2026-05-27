@@ -17,11 +17,11 @@ class EquipmentUpdateRequest extends FormRequest
         $id = $this->route('equipment');
 
         return [
-            'category_id' => ['nullable', 'exists:categories,id'],
+            'category_id' => ['required', 'exists:categories,id'],
             'name'        => ['required', 'string', 'max:150'],
             'code'        => ['required', 'string', 'max:50', Rule::unique('equipment', 'code')->ignore($id)],
             'description' => ['nullable', 'string'],
-            'stock'       => ['nullable', 'integer', 'min:0'],
+            'stock'       => ['required', 'integer', 'min:0'],
             'status'      => ['nullable', 'in:available,maintenance,out_of_service'],
             'is_active'   => ['nullable', 'boolean'],
         ];

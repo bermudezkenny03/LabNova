@@ -48,6 +48,7 @@ return new class extends Migration
         // Paso 2: Eliminar la columna 'action' (ya no se necesita)
         Schema::table('reservation_logs', function (Blueprint $table) {
             if (Schema::hasColumn('reservation_logs', 'action')) {
+                $table->dropIndex('reservation_logs_reservation_id_action_index');
                 $table->dropColumn('action');
             }
         });

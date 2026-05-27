@@ -74,10 +74,20 @@ const TIME_OPTIONS = Array.from({ length: 28 }, (_, i) => {
 
 // ─── Image helpers ────────────────────────────────────────────────────────────
 
+const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '')
+
+const normalizeImageUrl = (url?: string | null): string | null => {
+  if (!url) return null
+  if (/^https?:\/\//i.test(url)) return url
+  return `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`
+}
+
 const getEquipmentImage = (eq: Equipment): string | null =>
-  eq.images?.find(i => i.is_primary)?.image_url
-  ?? eq.images?.[0]?.image_url
-  ?? null
+  normalizeImageUrl(
+    eq.images?.find(i => i.is_primary)?.image_url
+    ?? eq.images?.[0]?.image_url
+    ?? null
+  )
 
 // ─── Small components ─────────────────────────────────────────────────────────
 

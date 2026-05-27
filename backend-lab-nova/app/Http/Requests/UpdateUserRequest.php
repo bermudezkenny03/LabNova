@@ -22,7 +22,7 @@ class UpdateUserRequest extends FormRequest
             'password' => 'nullable|string|min:6',
             'phone' => ['nullable', 'string', 'max:20', Rule::unique('users', 'phone')->ignore($this->route('id'))],
             'status' => 'sometimes|boolean',
-            'role_id' => 'sometimes|exists:roles,id',
+            'role_id' => ['sometimes', 'exists:roles,id', 'not_in:1'], // 1 = Super Admin role ID
             'gender_id' => 'nullable|exists:genders,id',
             'birthdate' => 'nullable|date',
             'address' => 'nullable|string|max:100',
@@ -40,6 +40,7 @@ class UpdateUserRequest extends FormRequest
             'email.unique'   => 'El correo ya se encuentra registrado.',
             'phone.unique'   => 'El teléfono ya se encuentra registrado.',
             'role_id.exists' => 'Rol no válido.',
+            'role_id.not_in' => 'No tienes permiso para asignar el rol Super Admin.',
             'password.min'   => 'La contraseña debe tener al menos 6 caracteres.',
         ];
     }

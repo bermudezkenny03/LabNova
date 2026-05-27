@@ -21,7 +21,7 @@ class StoreUserRequest extends FormRequest
             'password' => 'required|string|min:6',
             'phone' => 'nullable|string|max:20|unique:users,phone',
             'status' => 'required|boolean',
-            'role_id' => 'required|exists:roles,id',
+            'role_id' => ['required', 'exists:roles,id', 'not_in:1'], // 1 = Super Admin role ID
             'gender_id' => 'nullable|exists:genders,id',
             'birthdate' => 'nullable|date',
             'address' => 'nullable|string|max:100',
@@ -44,6 +44,7 @@ class StoreUserRequest extends FormRequest
             'password.min'       => 'La contraseña debe tener al menos 6 caracteres.',
             'role_id.required'   => 'Todos los campos obligatorios deben completarse.',
             'role_id.exists'     => 'Rol no válido.',
+            'role_id.not_in'     => 'No tienes permiso para asignar el rol Super Admin.',
             'status.required'    => 'Todos los campos obligatorios deben completarse.',
         ];
     }
