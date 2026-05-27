@@ -90,8 +90,7 @@ return new class extends Migration
 
         // Eliminar columnas ENUM (no escalables)
         Schema::table('report_requests', function (Blueprint $table) {
-            $table->dropIndex('report_requests_user_id_status_index');
-            $table->dropIndex('report_requests_type_status_index');
+            // Simplemente eliminar las columnas - los índices se eliminarán automáticamente
             $table->dropColumn(['type', 'status']);
         });
 

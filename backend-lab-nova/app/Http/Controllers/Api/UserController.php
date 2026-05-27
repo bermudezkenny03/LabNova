@@ -41,15 +41,9 @@ class UserController extends Controller
         $validated = $request->validated();
         $role = Role::find($validated['role_id']);
 
-        if (RoleAccessService::isSuperAdminRole($role)) {
-            return response()->json([
-                'message' => 'No tienes permiso para asignar el rol Super Admin.',
-            ], 403);
-        }
-
         if (! RoleAccessService::canAssignRole($request->user(), $role)) {
             return response()->json([
-                'message' => 'No tienes permiso para asignar este rol.',
+                'message' => 'No tienes permiso para asignar el rol Super Admin.',
             ], 403);
         }
 
@@ -136,15 +130,9 @@ class UserController extends Controller
             if (isset($validated['role_id'])) {
                 $newRole = Role::find($validated['role_id']);
 
-                if (RoleAccessService::isSuperAdminRole($newRole)) {
-                    return response()->json([
-                        'message' => 'No tienes permiso para asignar el rol Super Admin.',
-                    ], 403);
-                }
-
                 if (! RoleAccessService::canAssignRole($request->user(), $newRole)) {
                     return response()->json([
-                        'message' => 'No tienes permiso para asignar este rol.',
+                        'message' => 'No tienes permiso para asignar el rol Super Admin.',
                     ], 403);
                 }
             }
