@@ -10,11 +10,12 @@ class EquipmentImageResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id'           => $this->id,
             'equipment_id' => $this->equipment_id,
-            'image_path' => $this->image_path,
-            'image_name' => $this->image_name,
-            'is_primary' => $this->is_primary,
+            'image_path'   => $this->image_path,
+            'image_name'   => $this->image_name,
+            'image_url'    => $this->image_url,
+            'is_primary'   => $this->is_primary,
         ];
     }
 }

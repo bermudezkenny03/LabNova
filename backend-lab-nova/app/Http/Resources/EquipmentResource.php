@@ -16,7 +16,7 @@ class EquipmentResource extends JsonResource
             'code' => $this->code,
             'description' => $this->description,
             'stock' => $this->stock,
-            'status' => $this->status,
+            'status' => $this->whenLoaded('equipmentStatus')?->code ?? 'available',
             'is_active' => $this->is_active,
             'images' => EquipmentImageResource::collection($this->whenLoaded('images')),
             'created_at' => $this->created_at,

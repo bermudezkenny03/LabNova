@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Role;
 use App\Models\Module;
 use App\Models\Permission;
@@ -13,14 +14,14 @@ class PermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        Schema::disableForeignKeyConstraints();
 
         RoleModulePermission::truncate();
         Module::truncate();
         Permission::truncate();
         Role::truncate();
 
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        Schema::enableForeignKeyConstraints();
 
         $roles = [
             'Super Admin' => 'Acceso total al sistema',
@@ -217,7 +218,6 @@ class PermissionSeeder extends Seeder
             $reportRequests,
             $reports,
             $users,
-            $rolesModule,
         ], $permissionList);
 
         $assignPermissions($labManager, [
@@ -232,6 +232,7 @@ class PermissionSeeder extends Seeder
 
         $assignPermissions($teacher, [
             $dashboard,
+            $equipment,        // necesita ver equipos para crear reservas
             $reservations,
             $reportRequests,
             $reports,
@@ -239,6 +240,7 @@ class PermissionSeeder extends Seeder
 
         $assignPermissions($student, [
             $dashboard,
+            $equipment,   // necesita ver equipos para poder crear reservas
             $reservations,
         ], $permissionList->whereIn('slug', ['view', 'create']));
 

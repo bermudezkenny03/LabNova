@@ -104,18 +104,33 @@ class ReportController extends Controller
         try {
             $start = $request->get('start_date');
             $end   = $request->get('end_date');
+            $user  = $request->user();
 
-            $query = Reservation::query();
-            if ($start) $query->where('start_time', '>=', $start);
-            if ($end)   $query->where('end_time', '<=', $end);
+            $base = Reservation::query();
+
+            // Estudiantes solo ven sus propias reservas en el dashboard
+            if ($user->role?->name === 'Estudiante') {
+                $base->where('user_id', $user->id);
+            }
+
+            if ($start) $base->where('start_time', '>=', $start);
+            if ($end)   $base->where('end_time', '<=', $end);
+
+            // status es un accessor calculado desde reservation_status_id; el WHERE debe ir
+            // via JOIN para que opere en SQL, no sobre el accessor PHP
+            $counts = (clone $base)
+                ->join('reservation_statuses', 'reservations.reservation_status_id', '=', 'reservation_statuses.id')
+                ->selectRaw('reservation_statuses.code as code, COUNT(*) as cnt')
+                ->groupBy('reservation_statuses.code')
+                ->pluck('cnt', 'code');
 
             $stats = [
-                'total'     => $query->count(),
-                'pending'   => (clone $query)->where('status', 'pending')->count(),
-                'approved'  => (clone $query)->where('status', 'approved')->count(),
-                'rejected'  => (clone $query)->where('status', 'rejected')->count(),
-                'cancelled' => (clone $query)->where('status', 'cancelled')->count(),
-                'completed' => (clone $query)->where('status', 'completed')->count(),
+                'total'     => $base->count(),
+                'pending'   => (int) ($counts['pending']   ?? 0),
+                'approved'  => (int) ($counts['approved']  ?? 0),
+                'rejected'  => (int) ($counts['rejected']  ?? 0),
+                'cancelled' => (int) ($counts['cancelled'] ?? 0),
+                'completed' => (int) ($counts['completed'] ?? 0),
             ];
 
             return response()->json(['success' => true, 'data' => $stats]);
@@ -127,11 +142,17 @@ class ReportController extends Controller
     public function statsEquipment(): JsonResponse
     {
         try {
+            // equipment_status_id es FK; el WHERE debe ir via JOIN
+            $counts = Equipment::join('equipment_statuses', 'equipment.equipment_status_id', '=', 'equipment_statuses.id')
+                ->selectRaw('equipment_statuses.code as code, COUNT(*) as cnt')
+                ->groupBy('equipment_statuses.code')
+                ->pluck('cnt', 'code');
+
             $stats = [
                 'total'          => Equipment::count(),
-                'available'      => Equipment::where('status', 'available')->count(),
-                'maintenance'    => Equipment::where('status', 'maintenance')->count(),
-                'out_of_service' => Equipment::where('status', 'out_of_service')->count(),
+                'available'      => (int) ($counts['available']      ?? 0),
+                'maintenance'    => (int) ($counts['maintenance']     ?? 0),
+                'out_of_service' => (int) ($counts['out_of_service']  ?? 0),
             ];
 
             return response()->json(['success' => true, 'data' => $stats]);
@@ -164,8 +185,16 @@ class ReportController extends Controller
                 'user_activity'   => $this->buildUserActivityData($start, $end),
             };
 
+            if (empty($payload['records'] ?? [])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No existen datos para generar el reporte.',
+                ], 404);
+            }
+
             return response()->json([
                 'success' => true,
+                'message' => 'Reporte generado correctamente.',
                 'data'    => array_merge([
                     'type'         => $type,
                     'start_date'   => $start,
@@ -175,7 +204,7 @@ class ReportController extends Controller
                 ], $payload),
             ]);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Error al generar reporte', 'error' => $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Error durante la generación del reporte.'], 500);
         }
     }
 

@@ -4,21 +4,26 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Equipment;
+use App\Models\EquipmentStatus;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class EquipmentSeeder extends Seeder
 {
     public function run(): void
     {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        Schema::disableForeignKeyConstraints();
         Equipment::truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        Schema::enableForeignKeyConstraints();
 
         $computers = Category::where('name', 'Computadores')->first();
         $projectors = Category::where('name', 'Proyectores')->first();
         $kits = Category::where('name', 'Kits Electrónicos')->first();
         $instruments = Category::where('name', 'Instrumentos de Medición')->first();
+
+        // Obtener IDs de estados
+        $statusAvailable = EquipmentStatus::where('code', 'available')->first()?->id;
+        $statusMaintenance = EquipmentStatus::where('code', 'maintenance')->first()?->id;
 
         $equipmentList = [
             [
@@ -27,7 +32,7 @@ class EquipmentSeeder extends Seeder
                 'code' => 'EQ-001',
                 'description' => 'Portátil para prácticas de programación',
                 'stock' => 10,
-                'status' => 'available',
+                'equipment_status_id' => $statusAvailable,
                 'is_active' => 1,
             ],
             [
@@ -36,7 +41,7 @@ class EquipmentSeeder extends Seeder
                 'code' => 'EQ-002',
                 'description' => 'Equipo portátil para uso académico',
                 'stock' => 8,
-                'status' => 'available',
+                'equipment_status_id' => $statusAvailable,
                 'is_active' => 1,
             ],
             [
@@ -45,7 +50,7 @@ class EquipmentSeeder extends Seeder
                 'code' => 'EQ-003',
                 'description' => 'Proyector multimedia para presentaciones',
                 'stock' => 4,
-                'status' => 'available',
+                'equipment_status_id' => $statusAvailable,
                 'is_active' => 1,
             ],
             [
@@ -54,7 +59,7 @@ class EquipmentSeeder extends Seeder
                 'code' => 'EQ-004',
                 'description' => 'Kit básico de prototipado con Arduino',
                 'stock' => 15,
-                'status' => 'available',
+                'equipment_status_id' => $statusAvailable,
                 'is_active' => 1,
             ],
             [
@@ -63,7 +68,7 @@ class EquipmentSeeder extends Seeder
                 'code' => 'EQ-005',
                 'description' => 'Instrumento para medición eléctrica',
                 'stock' => 6,
-                'status' => 'maintenance',
+                'equipment_status_id' => $statusMaintenance,
                 'is_active' => 1,
             ],
         ];

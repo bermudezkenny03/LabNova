@@ -90,6 +90,11 @@ const ReportsPage: React.FC = () => {
 
   const handleGenerate = async () => {
     setError(null)
+
+    if (startDate && !endDate) { setError('La fecha de fin es obligatoria.'); return }
+    if (!startDate && endDate) { setError('La fecha de inicio es obligatoria.'); return }
+    if (startDate && endDate && startDate > endDate) { setError('El rango de fechas es inválido.'); return }
+
     setGenerating(true)
     try {
       const data = await reportService.generateReport({
@@ -98,10 +103,12 @@ const ReportsPage: React.FC = () => {
         end_date: endDate || undefined,
       })
       generatePDF(data)
-      showSuccess('Reporte generado y descargado correctamente.')
+      showSuccess('Reporte generado correctamente.')
       loadHistory(1)
-    } catch {
-      setError('No se pudo generar el reporte. Verifica tu conexión e intenta de nuevo.')
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } }
+      const msg = axiosErr?.response?.data?.message
+      setError(msg || 'Error durante la generación del reporte.')
     } finally {
       setGenerating(false)
     }

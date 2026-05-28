@@ -53,7 +53,7 @@ const Sidebar: React.FC = () => {
 
   const navItems: NavItem[] = [
     { path: '/',             label: 'Dashboard', icon: <IconDashboard />,     visible: true },
-    { path: '/equipment',   label: 'Equipos',    icon: <IconEquipment />,     visible: perms.canView('equipment') },
+    { path: '/equipment',   label: 'Catálogo',   icon: <IconEquipment />,     visible: perms.canView('equipment') },
     { path: '/reservations',label: 'Reservas',   icon: <IconReservations />,  visible: perms.canView('reservations') },
     { path: '/reports',     label: 'Reportes',   icon: <IconReports />,       visible: perms.canView('reports') },
     { path: '/users',       label: 'Usuarios',   icon: <IconUsers />,         visible: perms.canView('users') },

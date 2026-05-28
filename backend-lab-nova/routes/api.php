@@ -9,12 +9,16 @@ use App\Http\Controllers\Api\EquipmentController;
 use App\Http\Controllers\Api\ReservationController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ReportRequestController;
+use App\Models\Gender;
 
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Datos de referencia accesibles para todos los roles autenticados
+    Route::get('/genders', fn() => response()->json(Gender::orderBy('sort_order')->get(['id', 'name', 'code'])));
 
     // Perfil del usuario autenticado
     Route::get('/profile',             [AuthController::class, 'profile']);
@@ -53,6 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [EquipmentController::class, 'show']);
         Route::post('/', [EquipmentController::class, 'store'])->middleware('permission:equipment,create');
         Route::put('/{id}', [EquipmentController::class, 'update'])->middleware('permission:equipment,edit');
+        Route::post('/{id}/image', [EquipmentController::class, 'uploadImage'])->middleware('permission:equipment,edit');
         Route::delete('/{id}', [EquipmentController::class, 'destroy'])->middleware('permission:equipment,delete');
     });
 
@@ -91,10 +96,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/complete', [ReportRequestController::class, 'complete'])->middleware('permission:reports,edit');
     });
 
+    // Stats de dashboard — accesibles para todos los roles autenticados (filtro por rol en el controller)
+    Route::get('/reports/stats/reservations', [ReportController::class, 'statsReservations']);
+    Route::get('/reports/stats/equipment',    [ReportController::class, 'statsEquipment']);
+
     // Reports - Admin y Docentes pueden ver
     Route::prefix('reports')->middleware('permission:reports,view')->group(function () {
-        Route::get('/stats/reservations', [ReportController::class, 'statsReservations']);
-        Route::get('/stats/equipment', [ReportController::class, 'statsEquipment']);
         Route::post('/generate', [ReportController::class, 'generate']);
         Route::get('/', [ReportController::class, 'index']);
         Route::get('/{id}', [ReportController::class, 'show']);

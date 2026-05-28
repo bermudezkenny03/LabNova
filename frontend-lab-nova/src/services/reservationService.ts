@@ -24,12 +24,13 @@ export const reservationService = {
   },
 
   // POST /reservations → { success, data: {...} }
-  // Backend validates: equipment_id, start_time, end_time, notes
+  // Backend validates: equipment_id, start_time, end_time, notes, user_id (admin only)
   createReservation: async (data: {
     equipment_id: number
     start_time: string
     end_time: string
     notes?: string
+    user_id?: number
   }): Promise<Reservation> => {
     const response = await apiClient.post('/reservations', data)
     return response.data.data

@@ -1,132 +1,208 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { reservationService } from '../services/reservationService'
 import { equipmentService } from '../services/equipmentService'
+import { userService } from '../services/userService'
 import { useAuth } from '../hooks'
 import { usePermissions } from '../hooks/usePermissions'
-import { Reservation, Equipment } from '../types'
+import { useToast } from '../hooks/useToast'
+import { Reservation, Equipment, User } from '../types'
 import { Modal } from '../components/common/Modal'
+import { ToastContainer } from '../components/common/Toast'
 import { ProtectedButton, IfCan } from '../components/ProtectedFeature'
 
+// ─── Status helpers ───────────────────────────────────────────────────────────
+
 const STATUS_LABELS: Record<Reservation['status'], string> = {
-  pending: 'Pendiente',
-  approved: 'Aprobada',
-  rejected: 'Rechazada',
+  pending:   'Pendiente',
+  approved:  'Aprobada',
+  rejected:  'Rechazada',
   cancelled: 'Cancelada',
   completed: 'Completada',
 }
 
-const STATUS_COLORS: Record<Reservation['status'], string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
-  cancelled: 'bg-gray-100 text-gray-600',
-  completed: 'bg-blue-100 text-blue-800',
+const STATUS_STYLES: Record<Reservation['status'], string> = {
+  pending:   'bg-yellow-50 text-yellow-700 border border-yellow-200',
+  approved:  'bg-green-50 text-green-700 border border-green-200',
+  rejected:  'bg-red-50 text-red-700 border border-red-200',
+  cancelled: 'bg-gray-100 text-gray-500 border border-gray-200',
+  completed: 'bg-blue-50 text-blue-700 border border-blue-200',
 }
+
+const STATUS_DOT: Record<Reservation['status'], string> = {
+  pending:   'bg-yellow-400',
+  approved:  'bg-green-500',
+  rejected:  'bg-red-500',
+  cancelled: 'bg-gray-400',
+  completed: 'bg-blue-500',
+}
+
+// ─── Form type ────────────────────────────────────────────────────────────────
 
 interface ReservationForm {
   equipment_id: string
-  start_date: string
-  start_hour: string
-  end_date: string
-  end_hour: string
-  notes: string
+  user_id:      string
+  start_date:   string
+  start_hour:   string
+  end_date:     string
+  end_hour:     string
+  notes:        string
 }
 
 const EMPTY_FORM: ReservationForm = {
   equipment_id: '',
-  start_date: '',
-  start_hour: '08:00',
-  end_date: '',
-  end_hour: '09:00',
-  notes: '',
+  user_id:      '',
+  start_date:   '',
+  start_hour:   '08:00',
+  end_date:     '',
+  end_hour:     '09:00',
+  notes:        '',
 }
 
-/** Combina date + hour en el formato ISO que espera el backend */
-const toDateTime = (date: string, hour: string) => (date && hour ? `${date}T${hour}` : '')
+/** Combina date + hour → ISO 8601 UTC */
+const toDateTime = (date: string, hour: string) => {
+  if (!date || !hour) return ''
+  return new Date(`${date}T${hour}:00`).toISOString()
+}
 
-/** Genera opciones de tiempo en intervalos de 30 min */
+/** Opciones de tiempo cada 30 min: 07:00 → 20:30 */
 const TIME_OPTIONS = Array.from({ length: 28 }, (_, i) => {
-  const totalMins = 7 * 60 + i * 30  // 07:00 → 20:30
+  const totalMins = 7 * 60 + i * 30
   const h = String(Math.floor(totalMins / 60)).padStart(2, '0')
   const m = String(totalMins % 60).padStart(2, '0')
   return `${h}:${m}`
 })
 
+// ─── Image helpers ────────────────────────────────────────────────────────────
+
+const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '')
+
+const normalizeImageUrl = (url?: string | null): string | null => {
+  if (!url) return null
+  if (/^https?:\/\//i.test(url)) return url
+  return `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`
+}
+
+const getEquipmentImage = (eq: Equipment): string | null =>
+  normalizeImageUrl(
+    eq.images?.find(i => i.is_primary)?.image_url
+    ?? eq.images?.[0]?.image_url
+    ?? null
+  )
+
+// ─── Small components ─────────────────────────────────────────────────────────
+
+const StatusBadge: React.FC<{ status: Reservation['status'] }> = ({ status }) => (
+  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLES[status]}`}>
+    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[status]}`} />
+    {STATUS_LABELS[status]}
+  </span>
+)
+
+const FieldError: React.FC<{ msg?: string }> = ({ msg }) =>
+  msg ? (
+    <p className="flex items-center gap-1 text-red-500 text-xs mt-1">
+      <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+      </svg>
+      {msg}
+    </p>
+  ) : null
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 const ReservationsPage: React.FC = () => {
-  const { user } = useAuth()
-  const perms = usePermissions()
+  const { user }  = useAuth()
+  const perms     = usePermissions()
+  const toast     = useToast()
 
   const [reservations, setReservations] = useState<Reservation[]>([])
-  const [equipment, setEquipment] = useState<Equipment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [equipment,    setEquipment]    = useState<Equipment[]>([])
+  const [users,        setUsers]        = useState<User[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [saving,       setSaving]       = useState(false)
 
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
+  const [currentPage,  setCurrentPage]  = useState(1)
+  const [totalPages,   setTotalPages]   = useState(1)
+  const [total,        setTotal]        = useState(0)
   const [filterStatus, setFilterStatus] = useState('all')
 
-  const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState<ReservationForm>(EMPTY_FORM)
+  const [showModal,  setShowModal]  = useState(false)
+  const [form,       setForm]       = useState<ReservationForm>(EMPTY_FORM)
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof ReservationForm, string>>>({})
 
-  const [availabilityStatus, setAvailabilityStatus] = useState<'unknown' | 'checking' | 'available' | 'unavailable'>('unknown')
+  const [availabilityStatus, setAvailabilityStatus] =
+    useState<'unknown' | 'checking' | 'available' | 'unavailable' | 'past'>('unknown')
   const availabilityTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const [rejectModal, setRejectModal] = useState<{ id: number } | null>(null)
-  const [rejectReason, setRejectReason] = useState('')
+  const [rejectModal,   setRejectModal]   = useState<{ id: number } | null>(null)
+  const [rejectReason,  setRejectReason]  = useState('')
   const [actionLoading, setActionLoading] = useState<number | null>(null)
 
   const [detailReservation, setDetailReservation] = useState<Reservation | null>(null)
 
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3000)
-  }
+  // ── Derived role flags ─────────────────────────────────────────────────────
+
+  const isAdmin   = perms.isAdmin() || perms.isSuperAdmin() || perms.isLabManager()
+  const isStudent = perms.isStudent()
+
+  const pageTitle   = isStudent ? 'Mis Reservas' : 'Gestión de Reservas'
+
+  // ── Load data ──────────────────────────────────────────────────────────────
 
   const loadReservations = useCallback(async (page: number) => {
     try {
       setLoading(true)
-      setError(null)
       const res = await reservationService.getAllReservations(page, 10)
       setReservations(res.data ?? [])
       setTotal(res.total)
       setTotalPages(res.last_page)
       setCurrentPage(res.current_page)
     } catch {
-      setError('No se pudo cargar la lista de reservas.')
+      toast.error('No se pudo cargar la lista de reservas.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadEquipment = useCallback(async () => {
     try {
       const res = await equipmentService.getAllEquipment()
       setEquipment((res.data ?? []).filter((e) => e.status === 'available' && e.is_active !== false))
     } catch {
-      // no critical
+      // no crítico
     }
   }, [])
+
+  const loadUsers = useCallback(async () => {
+    if (!perms.isAdmin() && !perms.isSuperAdmin()) return
+    try {
+      const res = await userService.getAllUsers()
+      setUsers(res.data ?? [])
+    } catch {
+      // no crítico
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     loadReservations(1)
     loadEquipment()
-  }, [loadReservations, loadEquipment])
+    loadUsers()
+  }, [loadReservations, loadEquipment, loadUsers])
 
-  // Verificar disponibilidad automáticamente cuando equipo + fechas estén completos
+  // ── Availability check ─────────────────────────────────────────────────────
+
   useEffect(() => {
     const start = toDateTime(form.start_date, form.start_hour)
-    const end = toDateTime(form.end_date, form.end_hour)
+    const end   = toDateTime(form.end_date,   form.end_hour)
 
-    if (!form.equipment_id || !start || !end) {
+    if (!form.equipment_id || !start || !end || start >= end) {
       setAvailabilityStatus('unknown')
       return
     }
-    if (start >= end) {
-      setAvailabilityStatus('unknown')
+
+    // Detectar horario pasado con el mismo margen de 1 minuto que usa el backend
+    if (new Date(start).getTime() < Date.now() - 60_000) {
+      setAvailabilityStatus('past')
       return
     }
 
@@ -136,9 +212,7 @@ const ReservationsPage: React.FC = () => {
     availabilityTimer.current = setTimeout(async () => {
       try {
         const available = await reservationService.checkAvailability(
-          Number(form.equipment_id),
-          start,
-          end
+          Number(form.equipment_id), start, end
         )
         setAvailabilityStatus(available ? 'available' : 'unavailable')
       } catch {
@@ -151,47 +225,65 @@ const ReservationsPage: React.FC = () => {
     }
   }, [form.equipment_id, form.start_date, form.start_hour, form.end_date, form.end_hour])
 
+  // ── Filter ─────────────────────────────────────────────────────────────────
+
   const filtered = filterStatus === 'all'
     ? reservations
     : reservations.filter((r) => r.status === filterStatus)
 
+  // ── Validation ─────────────────────────────────────────────────────────────
+
   const validate = (): boolean => {
     const errors: Partial<Record<keyof ReservationForm, string>> = {}
     const start = toDateTime(form.start_date, form.start_hour)
-    const end = toDateTime(form.end_date, form.end_hour)
+    const end   = toDateTime(form.end_date,   form.end_hour)
     if (!form.equipment_id) errors.equipment_id = 'Selecciona un equipo'
-    if (!form.start_date) errors.start_date = 'La fecha de inicio es requerida'
-    if (!form.end_date) errors.end_date = 'La fecha de fin es requerida'
+    if (!form.start_date)   errors.start_date   = 'La fecha de inicio es requerida'
+    if (!form.end_date)     errors.end_date     = 'La fecha de fin es requerida'
     if (start && end && start >= end)
-      errors.end_date = 'La fecha/hora de fin debe ser posterior al inicio'
+      errors.end_date = 'La hora de finalización debe ser posterior a la hora de inicio'
+    if (start && new Date(start).getTime() < Date.now() - 60_000)
+      errors.start_date = 'No se permiten reservas en horarios ya transcurridos.'
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
 
+  // ── Actions ────────────────────────────────────────────────────────────────
+
   const handleCreate = async () => {
     if (!validate()) return
+    if (availabilityStatus === 'past') {
+      toast.error('No se permiten reservas en horarios ya transcurridos.')
+      return
+    }
+    if (availabilityStatus === 'checking') {
+      toast.warning('Verificando disponibilidad, por favor espera un momento.')
+      return
+    }
     if (availabilityStatus === 'unavailable') {
-      setError('El equipo no está disponible en el horario seleccionado.')
+      toast.error('El equipo ya se encuentra reservado en el horario seleccionado.')
       return
     }
     const start = toDateTime(form.start_date, form.start_hour)
-    const end = toDateTime(form.end_date, form.end_hour)
+    const end   = toDateTime(form.end_date,   form.end_hour)
+
     try {
       setSaving(true)
       await reservationService.createReservation({
         equipment_id: Number(form.equipment_id),
-        start_time: start,
-        end_time: end,
-        notes: form.notes || undefined,
+        start_time:   start,
+        end_time:     end,
+        notes:        form.notes || undefined,
+        user_id:      isAdmin && form.user_id ? Number(form.user_id) : undefined,
       })
-      showSuccess('Reserva creada exitosamente.')
+      toast.success('Tu solicitud de reserva ha sido enviada y se encuentra en estado Pendiente.')
       setShowModal(false)
       setForm(EMPTY_FORM)
       setAvailabilityStatus('unknown')
       loadReservations(currentPage)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg || 'No se pudo crear la reserva.')
+      toast.error(msg || 'No se pudo crear la reserva.')
     } finally {
       setSaving(false)
     }
@@ -201,10 +293,10 @@ const ReservationsPage: React.FC = () => {
     try {
       setActionLoading(id)
       await reservationService.approveReservation(id)
-      showSuccess('Reserva aprobada.')
+      toast.success('Estado de la reserva actualizado exitosamente.')
       loadReservations(currentPage)
     } catch {
-      setError('No se pudo aprobar la reserva.')
+      toast.error('No se pudo aprobar la reserva.')
     } finally {
       setActionLoading(null)
     }
@@ -212,15 +304,19 @@ const ReservationsPage: React.FC = () => {
 
   const handleReject = async () => {
     if (!rejectModal) return
+    if (!rejectReason.trim()) {
+      toast.warning('El motivo de rechazo es obligatorio.')
+      return
+    }
     try {
       setActionLoading(rejectModal.id)
       await reservationService.rejectReservation(rejectModal.id, rejectReason)
       setRejectModal(null)
       setRejectReason('')
-      showSuccess('Reserva rechazada.')
+      toast.success('Reserva rechazada.')
       loadReservations(currentPage)
     } catch {
-      setError('No se pudo rechazar la reserva.')
+      toast.error('No se pudo rechazar la reserva.')
     } finally {
       setActionLoading(null)
     }
@@ -230,295 +326,435 @@ const ReservationsPage: React.FC = () => {
     try {
       setActionLoading(id)
       await reservationService.cancelReservation(id)
-      showSuccess('Reserva cancelada.')
+      toast.success('La reserva ha sido cancelada correctamente.')
       loadReservations(currentPage)
-    } catch {
-      setError('No se pudo cancelar la reserva.')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg || 'No se pudo cancelar la reserva.')
     } finally {
       setActionLoading(null)
     }
   }
 
-  const formatDate = (d: string) =>
+  // ── Date formatters ────────────────────────────────────────────────────────
+
+  const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
 
-  const formatDateTime = (d: string) =>
+  const fmtTime = (d: string) =>
+    new Date(d).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+
+  const fmtDateTime = (d: string) =>
     new Date(d).toLocaleString('es-CO', {
       day: '2-digit', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     })
 
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <div className="space-y-5">
-      {/* Encabezado */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Reservas</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{total} reservas en total</p>
-        </div>
-        <IfCan permission={{ module: 'reservations', action: 'create' }}>
-          <button
-            onClick={() => { setForm({ ...EMPTY_FORM }); setFormErrors({}); setAvailabilityStatus('unknown'); setShowModal(true) }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            + Nueva Reserva
-          </button>
-        </IfCan>
-      </div>
+    <>
+      <ToastContainer toasts={toast.toasts} onRemove={toast.remove} />
 
-      {/* Alertas */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex justify-between">
-          {error}
-          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-4">&times;</button>
-        </div>
-      )}
-      {successMsg && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-          {successMsg}
-        </div>
-      )}
+      <div className="space-y-5">
 
-      {/* Filtro por estado */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-wrap gap-2">
-        {(['all', 'pending', 'approved', 'rejected', 'cancelled', 'completed'] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilterStatus(s)}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-              filterStatus === s
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {s === 'all' ? 'Todas' : STATUS_LABELS[s]}
-          </button>
-        ))}
-      </div>
-
-      {/* Tabla */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="p-6 space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
-            ))}
+        {/* Encabezado */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">{pageTitle}</h1>
+            <p className="text-gray-400 text-sm mt-0.5">{total} reserva{total !== 1 ? 's' : ''} en total</p>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center text-gray-400">
-            <p className="text-lg mb-1">No hay reservas</p>
-            <p className="text-sm">
-              {filterStatus !== 'all'
-                ? `No hay reservas con estado "${STATUS_LABELS[filterStatus as Reservation['status']]}"`
-                : 'Crea la primera reserva con el boton de arriba.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                <tr>
-                  <th className="px-5 py-3 font-medium">#</th>
-                  {!perms.isStudent() && <th className="px-5 py-3 font-medium">Usuario</th>}
-                  <th className="px-5 py-3 font-medium">Equipo</th>
-                  <th className="px-5 py-3 font-medium">Inicio</th>
-                  <th className="px-5 py-3 font-medium">Fin</th>
-                  <th className="px-5 py-3 font-medium">Estado</th>
-                  <th className="px-5 py-3 font-medium text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map((r) => (
-                  <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3 text-gray-400 font-mono text-xs">{r.id}</td>
-                    {!perms.isStudent() && (
-                      <td className="px-5 py-3 font-medium text-gray-800">
-                        {r.user?.name ?? `Usuario #${r.user_id}`}
-                      </td>
-                    )}
-                    <td className="px-5 py-3 text-gray-600">
-                      {r.equipment?.name ?? `Equipo #${r.equipment_id}`}
-                    </td>
-                    <td className="px-5 py-3 text-gray-500 text-xs">{formatDate(r.start_time)}</td>
-                    <td className="px-5 py-3 text-gray-500 text-xs">{formatDate(r.end_time)}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[r.status]}`}>
-                        {STATUS_LABELS[r.status]}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => setDetailReservation(r)}
-                          className="text-gray-500 hover:text-gray-700 text-xs font-medium"
-                        >
-                          Ver
-                        </button>
-                        {r.status === 'pending' && (
-                          <>
-                            <ProtectedButton
-                              permission={{ module: 'reservations', action: 'edit' }}
-                              onClick={() => handleApprove(r.id)}
-                              disabled={actionLoading === r.id}
-                              className="text-green-600 hover:text-green-800 text-xs font-medium disabled:opacity-50"
-                            >
-                              Aprobar
-                            </ProtectedButton>
-                            <ProtectedButton
-                              permission={{ module: 'reservations', action: 'edit' }}
-                              onClick={() => { setRejectModal({ id: r.id }); setRejectReason('') }}
-                              disabled={actionLoading === r.id}
-                              className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-50"
-                            >
-                              Rechazar
-                            </ProtectedButton>
-                          </>
-                        )}
-                        {(r.status === 'pending' || r.status === 'approved') && (
-                          r.user_id === user?.id ? (
-                            // El propietario siempre puede cancelar su propia reserva
-                            <button
-                              onClick={() => handleCancel(r.id)}
-                              disabled={actionLoading === r.id}
-                              className="text-orange-500 hover:text-orange-700 text-xs font-medium disabled:opacity-50"
-                            >
-                              Cancelar
-                            </button>
-                          ) : (
-                            // Admin/Lab Manager pueden cancelar reservas de otros
-                            <ProtectedButton
-                              permission={{ module: 'reservations', action: 'edit' }}
-                              onClick={() => handleCancel(r.id)}
-                              disabled={actionLoading === r.id}
-                              className="text-orange-500 hover:text-orange-700 text-xs font-medium disabled:opacity-50"
-                            >
-                              Cancelar
-                            </ProtectedButton>
-                          )
-                        )}
-                      </div>
-                    </td>
+          <IfCan permission={{ module: 'reservations', action: 'create' }}>
+            <button
+              onClick={() => {
+                setForm({ ...EMPTY_FORM })
+                setFormErrors({})
+                setAvailabilityStatus('unknown')
+                setShowModal(true)
+              }}
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nueva Reserva
+            </button>
+          </IfCan>
+        </div>
+
+        {/* Filtros */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-wrap gap-2">
+          {(['all', 'pending', 'approved', 'rejected', 'cancelled', 'completed'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                filterStatus === s
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              {s === 'all' ? 'Todas' : STATUS_LABELS[s]}
+            </button>
+          ))}
+        </div>
+
+        {/* Tabla */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {loading ? (
+            <div className="p-6 space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="py-16 flex flex-col items-center gap-3 text-gray-400">
+              <svg className="w-12 h-12 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p className="font-medium text-gray-500">
+                {filterStatus !== 'all'
+                  ? `No hay reservas con estado "${STATUS_LABELS[filterStatus as Reservation['status']]}"`
+                  : 'No hay reservas aún'}
+              </p>
+              {filterStatus === 'all' && (
+                <p className="text-sm">Crea la primera reserva con el botón de arriba.</p>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 text-gray-400 text-xs uppercase tracking-wide border-b border-gray-100">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">#</th>
+                    {/* Admin ve "Estudiante", estudiante no ve esa columna */}
+                    {!isStudent && <th className="px-5 py-3 font-medium">Estudiante</th>}
+                    <th className="px-5 py-3 font-medium">Equipo</th>
+                    <th className="px-5 py-3 font-medium">Fecha Solicitud</th>
+                    <th className="px-5 py-3 font-medium">Fecha Reserva</th>
+                    <th className="px-5 py-3 font-medium">Hora</th>
+                    <th className="px-5 py-3 font-medium">Estado</th>
+                    <th className="px-5 py-3 font-medium text-right">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.map((r) => {
+                    const eqImg = r.equipment ? getEquipmentImage(r.equipment) : null
+                    return (
+                      <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-3.5 text-gray-400 font-mono text-xs">#{r.id}</td>
+
+                        {!isStudent && (
+                          <td className="px-5 py-3.5 font-medium text-gray-800">
+                            {r.user
+                              ? `${r.user.name}${r.user.last_name ? ' ' + r.user.last_name : ''}`
+                              : `Usuario #${r.user_id}`}
+                          </td>
+                        )}
+
+                        {/* Equipo con thumbnail circular */}
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden shrink-0">
+                              {eqImg
+                                ? <img src={eqImg} alt={r.equipment?.name} className="w-full h-full object-cover" />
+                                : <div className="w-full h-full flex items-center justify-center">
+                                    <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                                        d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                  </div>
+                              }
+                            </div>
+                            <span className="text-gray-600">{r.equipment?.name ?? `Equipo #${r.equipment_id}`}</span>
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-3.5 text-gray-500 text-xs">{fmtDate(r.created_at)}</td>
+                        <td className="px-5 py-3.5 text-gray-500 text-xs">{fmtDate(r.start_time)}</td>
+                        <td className="px-5 py-3.5 text-gray-500 text-xs whitespace-nowrap">
+                          {fmtTime(r.start_time)} – {fmtTime(r.end_time)}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <StatusBadge status={r.status} />
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setDetailReservation(r)}
+                              className="text-gray-400 hover:text-blue-600 text-xs font-medium transition-colors"
+                            >
+                              Ver
+                            </button>
+                            {r.status === 'pending' && (
+                              <>
+                                <ProtectedButton
+                                  permission={{ module: 'reservations', action: 'edit' }}
+                                  onClick={() => handleApprove(r.id)}
+                                  disabled={actionLoading === r.id}
+                                  className="text-green-600 hover:text-green-800 text-xs font-medium disabled:opacity-40 transition-colors"
+                                >
+                                  Aprobar
+                                </ProtectedButton>
+                                <ProtectedButton
+                                  permission={{ module: 'reservations', action: 'edit' }}
+                                  onClick={() => { setRejectModal({ id: r.id }); setRejectReason('') }}
+                                  disabled={actionLoading === r.id}
+                                  className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-40 transition-colors"
+                                >
+                                  Rechazar
+                                </ProtectedButton>
+                              </>
+                            )}
+                            {r.status === 'pending' && (
+                              r.user_id === user?.id ? (
+                                <button
+                                  onClick={() => handleCancel(r.id)}
+                                  disabled={actionLoading === r.id}
+                                  className="text-orange-500 hover:text-orange-700 text-xs font-medium disabled:opacity-40 transition-colors"
+                                >
+                                  Cancelar
+                                </button>
+                              ) : (
+                                <ProtectedButton
+                                  permission={{ module: 'reservations', action: 'edit' }}
+                                  onClick={() => handleCancel(r.id)}
+                                  disabled={actionLoading === r.id}
+                                  className="text-orange-500 hover:text-orange-700 text-xs font-medium disabled:opacity-40 transition-colors"
+                                >
+                                  Cancelar
+                                </ProtectedButton>
+                              )
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Paginación */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <span>Página {currentPage} de {totalPages} — {total} reservas</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => loadReservations(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
+              >
+                ← Anterior
+              </button>
+              <button
+                onClick={() => loadReservations(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
+              >
+                Siguiente →
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Paginacion */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-500">
-            Pagina {currentPage} de {totalPages} &mdash; {total} reservas
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => loadReservations(currentPage - 1)}
-              disabled={currentPage <= 1}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
-            >
-              &larr; Anterior
-            </button>
-            <button
-              onClick={() => loadReservations(currentPage + 1)}
-              disabled={currentPage >= totalPages}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
-            >
-              Siguiente &rarr;
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal nueva reserva */}
+      {/* ── Modal: Nueva Reserva ─────────────────────────────────────────────── */}
       {showModal && (
         <Modal title="Nueva Reserva" onClose={() => setShowModal(false)}>
           <div className="space-y-4">
+
+            <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 flex gap-3">
+              <svg className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-blue-700 leading-relaxed">
+                Toda reserva inicia en estado <strong>pendiente</strong>. Solo se pueden reservar equipos disponibles y en fechas futuras.
+              </p>
+            </div>
+
+            {/* Selector de usuario — solo para admin/superadmin */}
+            {(perms.isAdmin() || perms.isSuperAdmin()) && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Usuario / Estudiante <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={form.user_id}
+                  onChange={(e) => setForm({ ...form, user_id: e.target.value })}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white transition-colors ${
+                    formErrors.user_id ? 'border-red-400 bg-red-50' : 'border-gray-200'
+                  }`}
+                >
+                  <option value="">Asignar a mí mismo</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}{u.last_name ? ' ' + u.last_name : ''} — {u.role?.name ?? ''}
+                    </option>
+                  ))}
+                </select>
+                <FieldError msg={formErrors.user_id} />
+              </div>
+            )}
+
+            {/* Equipo */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Equipo *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Equipo <span className="text-red-400">*</span>
+              </label>
               <select
                 value={form.equipment_id}
                 onChange={(e) => setForm({ ...form, equipment_id: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.equipment_id ? 'border-red-400' : 'border-gray-200'}`}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white transition-colors ${
+                  formErrors.equipment_id ? 'border-red-400 bg-red-50' : 'border-gray-200'
+                }`}
               >
-                <option value="">Seleccionar equipo disponible...</option>
-                {equipment.map((eq) => (
-                  <option key={eq.id} value={eq.id}>{eq.name}</option>
-                ))}
+                <option value="">Seleccionar equipo disponible…</option>
+                {equipment.map((eq) => {
+                  const catName = eq.category?.name ?? ''
+                  return (
+                    <option key={eq.id} value={eq.id}>
+                      {eq.name}{catName ? ` · ${catName}` : ''}{eq.stock != null ? ` · Stock: ${eq.stock}` : ''}
+                    </option>
+                  )
+                })}
               </select>
-              {formErrors.equipment_id && <p className="text-red-500 text-xs mt-1">{formErrors.equipment_id}</p>}
+              <FieldError msg={formErrors.equipment_id} />
+
+              {/* Vista previa del equipo seleccionado */}
+              {form.equipment_id && (() => {
+                const sel = equipment.find(e => String(e.id) === form.equipment_id)
+                if (!sel) return null
+                const img = getEquipmentImage(sel)
+                return (
+                  <div className="mt-2 flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 overflow-hidden shrink-0">
+                      {img
+                        ? <img src={img} alt={sel.name} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center">
+                            <svg className="w-5 h-5 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                                d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{sel.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {sel.category?.name && (
+                          <span className="px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700 font-medium">
+                            {sel.category.name}
+                          </span>
+                        )}
+                        {sel.stock != null && (
+                          <span className="text-xs text-gray-500">Stock: {sel.stock}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
               {equipment.length === 0 && (
-                <p className="text-orange-500 text-xs mt-1">No hay equipos disponibles en este momento.</p>
+                <p className="flex items-center gap-1 text-amber-600 text-xs mt-1">
+                  <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  No hay equipos disponibles en este momento.
+                </p>
               )}
             </div>
 
             {/* Fecha y hora de inicio */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de inicio *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Hora de Inicio <span className="text-red-400">*</span>
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="date"
                   value={form.start_date}
                   onChange={(e) => setForm({ ...form, start_date: e.target.value })}
                   min={new Date().toISOString().slice(0, 10)}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.start_date ? 'border-red-400' : 'border-gray-200'}`}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${
+                    formErrors.start_date ? 'border-red-400 bg-red-50' : 'border-gray-200'
+                  }`}
                 />
                 <select
                   value={form.start_hour}
                   onChange={(e) => setForm({ ...form, start_hour: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 >
-                  {TIME_OPTIONS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
+                  {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              {formErrors.start_date && <p className="text-red-500 text-xs mt-1">{formErrors.start_date}</p>}
+              <FieldError msg={formErrors.start_date} />
             </div>
 
             {/* Fecha y hora de fin */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de fin *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Hora de Fin <span className="text-red-400">*</span>
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="date"
                   value={form.end_date}
                   onChange={(e) => setForm({ ...form, end_date: e.target.value })}
                   min={form.start_date || new Date().toISOString().slice(0, 10)}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.end_date ? 'border-red-400' : 'border-gray-200'}`}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${
+                    formErrors.end_date ? 'border-red-400 bg-red-50' : 'border-gray-200'
+                  }`}
                 />
                 <select
                   value={form.end_hour}
                   onChange={(e) => setForm({ ...form, end_hour: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 >
-                  {TIME_OPTIONS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
+                  {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              {formErrors.end_date && <p className="text-red-500 text-xs mt-1">{formErrors.end_date}</p>}
+              <FieldError msg={formErrors.end_date} />
             </div>
 
             {/* Indicador de disponibilidad */}
             {availabilityStatus !== 'unknown' && (
-              <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${
-                availabilityStatus === 'checking' ? 'bg-gray-50 text-gray-500' :
-                availabilityStatus === 'available' ? 'bg-green-50 text-green-700 border border-green-200' :
-                'bg-red-50 text-red-700 border border-red-200'
+              <div className={`flex items-center gap-2.5 text-xs px-4 py-3 rounded-lg border ${
+                availabilityStatus === 'checking'
+                  ? 'bg-gray-50 border-gray-200 text-gray-500'
+                  : availabilityStatus === 'available'
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-red-50 border-red-200 text-red-700'
               }`}>
-                {availabilityStatus === 'checking' && <span className="animate-spin">⏳</span>}
-                {availabilityStatus === 'available' && <span>✓</span>}
-                {availabilityStatus === 'unavailable' && <span>✗</span>}
-                <span>
-                  {availabilityStatus === 'checking' && 'Verificando disponibilidad...'}
-                  {availabilityStatus === 'available' && 'Equipo disponible en el horario seleccionado'}
-                  {availabilityStatus === 'unavailable' && 'El equipo ya tiene una reserva en ese horario'}
+                {availabilityStatus === 'checking' && (
+                  <svg className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                )}
+                {availabilityStatus === 'available' && (
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {(availabilityStatus === 'unavailable' || availabilityStatus === 'past') && (
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+                <span className="font-medium">
+                  {availabilityStatus === 'checking'    && 'Verificando disponibilidad…'}
+                  {availabilityStatus === 'available'   && 'Equipo disponible en el horario seleccionado'}
+                  {availabilityStatus === 'unavailable' && 'El equipo ya se encuentra reservado en el horario seleccionado'}
+                  {availabilityStatus === 'past'        && 'El horario seleccionado ya ha transcurrido. Elige una hora futura.'}
                 </span>
               </div>
             )}
 
+            {/* Notas */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notas (opcional)</label>
               <textarea
@@ -526,11 +762,12 @@ const ReservationsPage: React.FC = () => {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={3}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
-                placeholder="Proposito o detalles adicionales..."
+                placeholder="Propósito o detalles adicionales…"
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            {/* Acciones */}
+            <div className="flex justify-end gap-3 pt-1">
               <button
                 onClick={() => setShowModal(false)}
                 className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -539,28 +776,44 @@ const ReservationsPage: React.FC = () => {
               </button>
               <button
                 onClick={handleCreate}
-                disabled={saving}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                disabled={saving || availabilityStatus === 'unavailable' || availabilityStatus === 'checking' || availabilityStatus === 'past'}
+                className="inline-flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {saving ? 'Creando...' : 'Crear Reserva'}
+                {saving ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Creando…
+                  </>
+                ) : 'Crear Reserva'}
               </button>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* Modal rechazar */}
+      {/* ── Modal: Rechazar ──────────────────────────────────────────────────── */}
       {rejectModal && (
         <Modal title="Rechazar Reserva" onClose={() => setRejectModal(null)} size="sm">
           <div className="space-y-4">
+            <div className="bg-red-50 border border-red-100 rounded-lg px-4 py-3 flex gap-3">
+              <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="text-xs text-red-700">Esta acción no se puede deshacer. Se registrará en el historial de auditoría.</p>
+            </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Motivo del rechazo</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Motivo del rechazo <span className="text-red-400">*</span>
+              </label>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 rows={3}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"
-                placeholder="Indica el motivo..."
+                placeholder="Indica el motivo…"
               />
             </div>
             <div className="flex justify-end gap-3">
@@ -575,62 +828,61 @@ const ReservationsPage: React.FC = () => {
                 disabled={actionLoading !== null}
                 className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
-                {actionLoading !== null ? 'Rechazando...' : 'Rechazar'}
+                {actionLoading !== null ? 'Rechazando…' : 'Confirmar Rechazo'}
               </button>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* Modal detalle */}
+      {/* ── Modal: Detalle ───────────────────────────────────────────────────── */}
       {detailReservation && (
         <Modal title={`Reserva #${detailReservation.id}`} onClose={() => setDetailReservation(null)}>
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-gray-400 text-xs uppercase font-medium mb-0.5">Usuario</p>
-                <p className="text-gray-800 font-medium">
-                  {detailReservation.user?.name ?? `#${detailReservation.user_id}`}
-                </p>
+                <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-1">ID Reserva</p>
+                <p className="text-gray-800 font-medium">#{detailReservation.id}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-xs uppercase font-medium mb-0.5">Equipo</p>
+                <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-1">Equipo</p>
                 <p className="text-gray-800 font-medium">
                   {detailReservation.equipment?.name ?? `#${detailReservation.equipment_id}`}
                 </p>
               </div>
               <div>
-                <p className="text-gray-400 text-xs uppercase font-medium mb-0.5">Inicio</p>
-                <p className="text-gray-800">{formatDateTime(detailReservation.start_time)}</p>
+                <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-1">Fecha Solicitud</p>
+                <p className="text-gray-700">{fmtDateTime(detailReservation.created_at)}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-xs uppercase font-medium mb-0.5">Fin</p>
-                <p className="text-gray-800">{formatDateTime(detailReservation.end_time)}</p>
+                <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-1">Fecha Reserva</p>
+                <p className="text-gray-700">{fmtDate(detailReservation.start_time)}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-xs uppercase font-medium mb-0.5">Estado</p>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[detailReservation.status]}`}>
-                  {STATUS_LABELS[detailReservation.status]}
-                </span>
+                <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-1">Hora</p>
+                <p className="text-gray-700">{fmtTime(detailReservation.start_time)} – {fmtTime(detailReservation.end_time)}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-xs uppercase font-medium mb-0.5">Creada</p>
-                <p className="text-gray-800">{formatDateTime(detailReservation.created_at)}</p>
+                <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-1">Estado</p>
+                <StatusBadge status={detailReservation.status} />
               </div>
             </div>
+
             {detailReservation.rejection_reason && (
-              <div>
-                <p className="text-gray-400 text-xs uppercase font-medium mb-0.5">Motivo de rechazo</p>
-                <p className="text-gray-700 bg-red-50 rounded-lg p-3 text-xs">{detailReservation.rejection_reason}</p>
+              <div className="bg-red-50 border border-red-100 rounded-lg p-3">
+                <p className="text-xs text-red-400 uppercase font-semibold tracking-wide mb-1">Motivo de rechazo</p>
+                <p className="text-red-700 text-xs">{detailReservation.rejection_reason}</p>
               </div>
             )}
+
             {detailReservation.notes && (
-              <div>
-                <p className="text-gray-400 text-xs uppercase font-medium mb-0.5">Notas</p>
-                <p className="text-gray-700 bg-gray-50 rounded-lg p-3">{detailReservation.notes}</p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide mb-1">Notas</p>
+                <p className="text-gray-700">{detailReservation.notes}</p>
               </div>
             )}
-            <div className="flex justify-end pt-2">
+
+            <div className="flex justify-end pt-1">
               <button
                 onClick={() => setDetailReservation(null)}
                 className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -641,7 +893,7 @@ const ReservationsPage: React.FC = () => {
           </div>
         </Modal>
       )}
-    </div>
+    </>
   )
 }
 
