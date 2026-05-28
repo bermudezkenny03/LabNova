@@ -64,13 +64,25 @@ const toDateTime = (date: string, hour: string) => {
   return new Date(`${date}T${hour}:00`).toISOString()
 }
 
-/** Opciones de tiempo cada 30 min: 07:00 → 20:30 */
-const TIME_OPTIONS = Array.from({ length: 28 }, (_, i) => {
-  const totalMins = 7 * 60 + i * 30
+/** Opciones de tiempo cada 15 min: 07:00 → 22:00 */
+const TIME_OPTIONS = Array.from({ length: 61 }, (_, i) => {
+  const totalMins = 7 * 60 + i * 15
   const h = String(Math.floor(totalMins / 60)).padStart(2, '0')
   const m = String(totalMins % 60).padStart(2, '0')
   return `${h}:${m}`
 })
+
+const getAvailableTimeOptions = (selectedDate: string): string[] => {
+  const today = new Date().toISOString().split('T')[0]
+  const isToday = selectedDate === today
+
+  if (!isToday) return TIME_OPTIONS
+
+  const now = new Date()
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
+  return TIME_OPTIONS.filter(time => time > currentTime)
+}
 
 // ─── Image helpers ────────────────────────────────────────────────────────────
 
@@ -790,7 +802,8 @@ const ReservationsPage: React.FC = () => {
                   onChange={(e) => setForm({ ...form, start_hour: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 >
-                  {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                  <option value="">Seleccionar hora...</option>
+                  {getAvailableTimeOptions(form.start_date).map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <FieldError msg={formErrors.start_date} />
@@ -816,6 +829,7 @@ const ReservationsPage: React.FC = () => {
                   onChange={(e) => setForm({ ...form, end_hour: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 >
+                  <option value="">Seleccionar hora...</option>
                   {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
