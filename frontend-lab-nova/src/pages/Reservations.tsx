@@ -64,9 +64,9 @@ const toDateTime = (date: string, hour: string) => {
   return new Date(`${date}T${hour}:00`).toISOString()
 }
 
-/** Opciones de tiempo cada 15 min: 07:00 → 22:00 */
-const TIME_OPTIONS = Array.from({ length: 61 }, (_, i) => {
-  const totalMins = 7 * 60 + i * 15
+/** Opciones de tiempo por minuto: 07:00 → 22:00 */
+const TIME_OPTIONS = Array.from({ length: (22 - 7) * 60 + 1 }, (_, i) => {
+  const totalMins = 7 * 60 + i
   const h = String(Math.floor(totalMins / 60)).padStart(2, '0')
   const m = String(totalMins % 60).padStart(2, '0')
   return `${h}:${m}`
