@@ -152,6 +152,7 @@ const ReservationsPage: React.FC = () => {
     reserved_until: string | null
   } | null>(null)
   const [checkingEquipmentAvailability, setCheckingEquipmentAvailability] = useState(false)
+  const [equipmentQuery, setEquipmentQuery] = useState('')
 
   const [rejectModal,   setRejectModal]   = useState<{ id: number } | null>(null)
   const [rejectReason,  setRejectReason]  = useState('')
@@ -201,6 +202,18 @@ const ReservationsPage: React.FC = () => {
       // no crítico
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filteredEquipment = equipment.filter((eq) => {
+    const query = equipmentQuery.trim().toLowerCase()
+    if (!query) return true
+    const searchableFields = [
+      eq.name ?? '',
+      eq.code ?? '',
+      eq.category?.name ?? '',
+      eq.description ?? '',
+    ]
+    return searchableFields.some((field) => field.toLowerCase().includes(query))
+  })
 
   useEffect(() => {
     loadReservations(1)
@@ -431,6 +444,7 @@ const ReservationsPage: React.FC = () => {
               onClick={() => {
                 setForm({ ...EMPTY_FORM })
                 setFormErrors({})
+                setEquipmentQuery('')
                 setAvailabilityStatus('unknown')
                 setShowModal(true)
               }}
@@ -666,26 +680,66 @@ const ReservationsPage: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Equipo <span className="text-red-400">*</span>
               </label>
-              <select
-                value={form.equipment_id}
-                onChange={(e) => setForm({ ...form, equipment_id: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white transition-colors ${
-                  formErrors.equipment_id ? 'border-red-400 bg-red-50' : 'border-gray-200'
-                }`}
-              >
-                <option value="">Seleccionar equipo disponible…</option>
-                {equipment.map((eq) => {
-                  const catName = eq.category?.name ?? ''
-                  return (
-                    <option key={eq.id} value={eq.id}>
-                      {eq.name}{catName ? ` · ${catName}` : ''}{eq.stock != null ? ` · Stock: ${eq.stock}` : ''}
-                    </option>
-                  )
-                })}
-              </select>
-              <FieldError msg={formErrors.equipment_id} />
+                <input
+                  type="text"
+                  value={equipmentQuery}
+                  onChange={(e) => setEquipmentQuery(e.target.value)}
+                  placeholder="Buscar equipo por nombre, categoría o código"
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors mb-3"
+                />
+                <select
+                  value={form.equipment_id}
+                  onChange={(e) => setForm({ ...form, equipment_id: e.target.value })}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white transition-colors ${
+                    formErrors.equipment_id ? 'border-red-400 bg-red-50' : 'border-gray-200'
+                  }`}
+                >
+                  <option value="">Seleccionar equipo disponible…</option>
+                  {filteredEquipment.length > 0 ? filteredEquipment.map((eq) => {
+                    const catName = eq.category?.name ?? ''
+                    return (
+                      <option key={eq.id} value={String(eq.id)}>
+                        {eq.name}{catName ? ` · ${catName}` : ''}{eq.stock != null ? ` · Stock: ${eq.stock}` : ''}
+                      </option>
+                    )
+                  }) : (
+                    <option value="" disabled>No hay equipos que coincidan con la búsqueda.</option>
+                  )}
+                </select>
+                <p className="text-xs text-slate-500 mt-2">
+                  Mostrando {filteredEquipment.length} de {equipment.length} equipos disponibles.
+                </p>
 
-              {/* Vista previa del equipo seleccionado */}
+                {equipmentQuery.trim() && (
+                  <div className="mt-3 grid gap-2">
+                    {filteredEquipment.length > 0 ? filteredEquipment.slice(0, 5).map((eq) => {
+                      const isSelected = String(eq.id) === form.equipment_id
+                      return (
+                        <button
+                          key={eq.id}
+                          type="button"
+                          onClick={() => setForm({ ...form, equipment_id: String(eq.id) })}
+                          className={`w-full rounded-2xl border px-3 py-3 text-left text-sm transition ${
+                            isSelected
+                              ? 'border-blue-300 bg-blue-50 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <p className="font-semibold text-slate-900 truncate">{eq.name}</p>
+                          <p className="text-xs text-slate-500 mt-1 truncate">
+                            {eq.category?.name ?? 'Sin categoría'} · {eq.code}{eq.stock != null ? ` · Stock: ${eq.stock}` : ''}
+                          </p>
+                        </button>
+                      )
+                    }) : (
+                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                        No se encontraron coincidencias para "{equipmentQuery}".
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <FieldError msg={formErrors.equipment_id} />
               {form.equipment_id && (() => {
                 const sel = equipment.find(e => String(e.id) === form.equipment_id)
                 if (!sel) return null
