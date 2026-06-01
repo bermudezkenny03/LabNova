@@ -64,12 +64,11 @@ const toDateTime = (date: string, hour: string) => {
   return new Date(`${date}T${hour}:00`).toISOString()
 }
 
-/** Opciones de tiempo por minuto: 07:00 → 22:00 */
-const TIME_OPTIONS = Array.from({ length: (22 - 7) * 60 + 1 }, (_, i) => {
-  const totalMins = 7 * 60 + i
-  const h = String(Math.floor(totalMins / 60)).padStart(2, '0')
-  const m = String(totalMins % 60).padStart(2, '0')
-  return `${h}:${m}`
+/** Opciones de tiempo por hora: 07:00 → 22:00 */
+const TIME_OPTIONS = Array.from({ length: 16 }, (_, i) => {
+  const hour = 7 + i
+  const h = String(hour).padStart(2, '0')
+  return `${h}:00`
 })
 
 const getAvailableTimeOptions = (selectedDate: string): string[] => {
@@ -79,9 +78,10 @@ const getAvailableTimeOptions = (selectedDate: string): string[] => {
   if (!isToday) return TIME_OPTIONS
 
   const now = new Date()
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const currentHour = now.getMinutes() === 0 ? now.getHours() : now.getHours() + 1
+  const currentTime = `${String(currentHour).padStart(2, '0')}:00`
 
-  return TIME_OPTIONS.filter(time => time > currentTime)
+  return TIME_OPTIONS.filter(time => time >= currentTime)
 }
 
 const getTimeInputMin = (selectedDate: string): string => {
@@ -89,9 +89,8 @@ const getTimeInputMin = (selectedDate: string): string => {
   if (selectedDate !== today) return '07:00'
 
   const now = new Date()
-  const hours = String(now.getHours()).padStart(2, '0')
-  const minutes = String(now.getMinutes()).padStart(2, '0')
-  return `${hours}:${minutes}`
+  const currentHour = now.getMinutes() === 0 ? now.getHours() : now.getHours() + 1
+  return `${String(currentHour).padStart(2, '0')}:00`
 }
 
 // ─── Image helpers ────────────────────────────────────────────────────────────
@@ -725,43 +724,83 @@ const ReservationsPage: React.FC = () => {
               </div>
             )}
 
-            {/* Equipo */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Equipo <span className="text-red-400">*</span>
-              </label>
+            <div className="space-y-4">
+              {(perms.isAdmin() || perms.isSuperAdmin()) && (
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 mb-3">
+                    Usuario / Estudiante <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    value={form.user_id}
+                    onChange={(e) => setForm({ ...form, user_id: e.target.value })}
+                    className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${
+                      formErrors.user_id ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <option value="">Asignar a mí mismo</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}{u.last_name ? ' ' + u.last_name : ''} — {u.role?.name ?? ''}
+                      </option>
+                    ))}
+                  </select>
+                  <FieldError msg={formErrors.user_id} />
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <label className="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 mb-3">
+                  Equipo <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="text"
                   value={equipmentQuery}
                   onChange={(e) => setEquipmentQuery(e.target.value)}
-                  placeholder="Buscar equipo por nombre, categoría o código"
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors mb-3"
+                  placeholder="Buscar por nombre, categoría o código..."
+                  className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors"
                 />
-                <select
-                  value={form.equipment_id}
-                  onChange={(e) => setForm({ ...form, equipment_id: e.target.value })}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white transition-colors ${
-                    formErrors.equipment_id ? 'border-red-400 bg-red-50' : 'border-gray-200'
-                  }`}
-                >
-                  <option value="">Seleccionar equipo disponible…</option>
-                  {filteredEquipment.length > 0 ? filteredEquipment.map((eq) => {
-                    const catName = eq.category?.name ?? ''
-                    return (
-                      <option key={eq.id} value={String(eq.id)}>
-                        {eq.name}{catName ? ` · ${catName}` : ''}{eq.stock != null ? ` · Stock: ${eq.stock}` : ''}
-                      </option>
-                    )
-                  }) : (
-                    <option value="" disabled>No hay equipos que coincidan con la búsqueda.</option>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  {form.equipment_id ? (
+                    (() => {
+                      const sel = equipment.find(e => String(e.id) === form.equipment_id)
+                      if (!sel) return null
+                      const img = getEquipmentImage(sel)
+                      return (
+                        <div className="flex items-start gap-4">
+                          <div className="w-14 h-14 rounded-3xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
+                            {img ? (
+                              <img src={img} alt={sel.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <svg className="w-6 h-6 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-slate-900 truncate">{sel.name}</p>
+                            <p className="text-xs text-slate-500 mt-1 truncate">{sel.category?.name ?? 'Sin categoría'}</p>
+                            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                              {sel.stock != null && <span className="rounded-full bg-slate-100 px-2 py-1">Stock: {sel.stock}</span>}
+                              <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-1">Disponible</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()
+                  ) : (
+                    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                      Selecciona un equipo para ver más detalles.
+                    </div>
                   )}
-                </select>
-                <p className="text-xs text-slate-500 mt-2">
+                </div>
+
+                <p className="text-xs text-slate-500">
                   Mostrando {filteredEquipment.length} de {equipment.length} equipos disponibles.
                 </p>
 
                 {equipmentQuery.trim() && (
-                  <div className="mt-3 grid gap-2">
+                  <div className="grid gap-2">
                     {filteredEquipment.length > 0 ? filteredEquipment.slice(0, 5).map((eq) => {
                       const isSelected = String(eq.id) === form.equipment_id
                       return (
@@ -769,7 +808,7 @@ const ReservationsPage: React.FC = () => {
                           key={eq.id}
                           type="button"
                           onClick={() => setForm({ ...form, equipment_id: String(eq.id) })}
-                          className={`w-full rounded-2xl border px-3 py-3 text-left text-sm transition ${
+                          className={`w-full rounded-3xl border px-4 py-3 text-left text-sm transition ${
                             isSelected
                               ? 'border-blue-300 bg-blue-50 shadow-sm'
                               : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50'
@@ -782,7 +821,7 @@ const ReservationsPage: React.FC = () => {
                         </button>
                       )
                     }) : (
-                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                      <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
                         No se encontraron coincidencias para "{equipmentQuery}".
                       </div>
                     )}
@@ -790,103 +829,118 @@ const ReservationsPage: React.FC = () => {
                 )}
 
                 <FieldError msg={formErrors.equipment_id} />
-              {form.equipment_id && (() => {
-                const sel = equipment.find(e => String(e.id) === form.equipment_id)
-                if (!sel) return null
-                const img = getEquipmentImage(sel)
-                return (
-                  <div className="mt-2 flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100">
-                    <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 overflow-hidden shrink-0">
-                      {img
-                        ? <img src={img} alt={sel.name} className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center">
-                            <svg className="w-5 h-5 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                                d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                          </div>
-                      }
+              </div>
+
+              {form.equipment_id && (
+                <div>
+                  {checkingEquipmentAvailability ? (
+                    <div className="flex items-center justify-center gap-2 p-3 bg-blue-50 rounded-3xl border border-blue-200">
+                      <div className="animate-spin">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </div>
+                      <span className="text-sm text-blue-700 font-medium">Verificando disponibilidad...</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{sel.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {sel.category?.name && (
-                          <span className="px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700 font-medium">
-                            {sel.category.name}
-                          </span>
-                        )}
-                        {sel.stock != null && (
-                          <span className="text-xs text-gray-500">Stock: {sel.stock}</span>
-                        )}
+                  ) : equipmentAvailability ? (
+                    <div className={`p-4 rounded-3xl border ${
+                      equipmentAvailability.is_available_now
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-amber-50 border-amber-200'
+                    }`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          {equipmentAvailability.is_available_now ? (
+                            <>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                <p className="text-sm font-semibold text-emerald-700">Disponible ahora</p>
+                              </div>
+                              <p className="text-xs text-emerald-700">Puedes usar este equipo a partir de ahora. La fecha y hora han sido auto-rellenadas.</p>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                <p className="text-sm font-semibold text-amber-700">Próximo disponible</p>
+                              </div>
+                              <p className="text-xs text-amber-700 mb-2">
+                                Próximo slot: <strong>{equipmentAvailability.next_available.date}</strong> a las <strong>{equipmentAvailability.next_available.time}</strong>
+                              </p>
+                              <p className="text-xs text-amber-700">La fecha y hora han sido auto-rellenadas con el próximo horario disponible.</p>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )
-              })()}
-
-              {equipment.length === 0 && (
-                <p className="flex items-center gap-1 text-amber-600 text-xs mt-1">
-                  <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  No hay equipos disponibles en este momento.
-                </p>
+                  ) : null}
+                </div>
               )}
             </div>
 
-            {/* Disponibilidad del equipo */}
-            {form.equipment_id && (
-              <div>
-                {checkingEquipmentAvailability ? (
-                  <div className="flex items-center justify-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="animate-spin">
-                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </div>
-                    <span className="text-sm text-blue-700 font-medium">Verificando disponibilidad...</span>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 mb-3">Inicio</p>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 mb-2">Fecha</p>
+                    <input
+                      type="date"
+                      value={form.start_date}
+                      onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                      min={new Date().toISOString().slice(0, 10)}
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${
+                        formErrors.start_date ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'
+                      }`}
+                    />
                   </div>
-                ) : equipmentAvailability ? (
-                  <div className={`p-4 rounded-lg border ${
-                    equipmentAvailability.is_available_now
-                      ? 'bg-green-50 border-green-200'
-                      : 'bg-amber-50 border-amber-200'
-                  }`}>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        {equipmentAvailability.is_available_now ? (
-                          <>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                              <p className="text-sm font-semibold text-green-700">Disponible ahora</p>
-                            </div>
-                            <p className="text-xs text-green-600">
-                              Puedes usar este equipo a partir de ahora. La fecha y hora han sido auto-rellenadas.
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                              <p className="text-sm font-semibold text-amber-700">Próximo disponible</p>
-                            </div>
-                            <p className="text-xs text-amber-600 mb-2">
-                              Próximo slot: <strong>{equipmentAvailability.next_available.date}</strong> a las{' '}
-                              <strong>{equipmentAvailability.next_available.time}</strong>
-                            </p>
-                            <p className="text-xs text-amber-600">
-                              La fecha y hora han sido auto-rellenadas con el próximo horario disponible.
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 mb-2">Hora</p>
+                    <input
+                      type="time"
+                      value={form.start_hour}
+                      onChange={(e) => setForm({ ...form, start_hour: e.target.value })}
+                      min={getTimeInputMin(form.start_date)}
+                      max="22:00"
+                      step="3600"
+                      className="w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
                   </div>
-                ) : null}
+                </div>
+                <FieldError msg={formErrors.start_date} />
               </div>
-            )}
 
-            {/* Fecha y hora de inicio */}
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 mb-3">Fin</p>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 mb-2">Fecha</p>
+                    <input
+                      type="date"
+                      value={form.end_date}
+                      onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                      min={form.start_date || new Date().toISOString().slice(0, 10)}
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${
+                        formErrors.end_date ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 mb-2">Hora</p>
+                    <input
+                      type="time"
+                      value={form.end_hour}
+                      onChange={(e) => setForm({ ...form, end_hour: e.target.value })}
+                      min={form.start_hour || '08:00'}
+                      max="23:00"
+                      step="3600"
+                      className="w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                  </div>
+                </div>
+                <FieldError msg={formErrors.end_date} />
+              </div>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Hora de Inicio <span className="text-red-400">*</span>
@@ -907,7 +961,7 @@ const ReservationsPage: React.FC = () => {
                   onChange={(e) => setForm({ ...form, start_hour: e.target.value })}
                   min={getTimeInputMin(form.start_date)}
                   max="22:00"
-                  step="60"
+                  step="3600"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
               </div>
