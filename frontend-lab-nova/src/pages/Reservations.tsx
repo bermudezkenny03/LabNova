@@ -64,13 +64,25 @@ const toDateTime = (date: string, hour: string) => {
   return new Date(`${date}T${hour}:00`).toISOString()
 }
 
-/** Opciones de tiempo cada 30 min: 07:00 → 20:30 */
-const TIME_OPTIONS = Array.from({ length: 28 }, (_, i) => {
-  const totalMins = 7 * 60 + i * 30
+/** Opciones de tiempo cada 15 min: 07:00 → 22:00 */
+const TIME_OPTIONS = Array.from({ length: 61 }, (_, i) => {
+  const totalMins = 7 * 60 + i * 15
   const h = String(Math.floor(totalMins / 60)).padStart(2, '0')
   const m = String(totalMins % 60).padStart(2, '0')
   return `${h}:${m}`
 })
+
+const getAvailableTimeOptions = (selectedDate: string): string[] => {
+  const today = new Date().toISOString().split('T')[0]
+  const isToday = selectedDate === today
+
+  if (!isToday) return TIME_OPTIONS
+
+  const now = new Date()
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
+  return TIME_OPTIONS.filter(time => time > currentTime)
+}
 
 // ─── Image helpers ────────────────────────────────────────────────────────────
 
@@ -134,6 +146,14 @@ const ReservationsPage: React.FC = () => {
     useState<'unknown' | 'checking' | 'available' | 'unavailable' | 'past'>('unknown')
   const availabilityTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const [equipmentAvailability, setEquipmentAvailability] = useState<{
+    is_available_now: boolean
+    next_available: { date: string; time: string; duration_minutes: number }
+    reserved_until: string | null
+  } | null>(null)
+  const [checkingEquipmentAvailability, setCheckingEquipmentAvailability] = useState(false)
+  const [equipmentQuery, setEquipmentQuery] = useState('')
+
   const [rejectModal,   setRejectModal]   = useState<{ id: number } | null>(null)
   const [rejectReason,  setRejectReason]  = useState('')
   const [actionLoading, setActionLoading] = useState<number | null>(null)
@@ -183,6 +203,18 @@ const ReservationsPage: React.FC = () => {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const filteredEquipment = equipment.filter((eq) => {
+    const query = equipmentQuery.trim().toLowerCase()
+    if (!query) return true
+    const searchableFields = [
+      eq.name ?? '',
+      eq.code ?? '',
+      eq.category?.name ?? '',
+      eq.description ?? '',
+    ]
+    return searchableFields.some((field) => field.toLowerCase().includes(query))
+  })
+
   useEffect(() => {
     loadReservations(1)
     loadEquipment()
@@ -224,6 +256,49 @@ const ReservationsPage: React.FC = () => {
       if (availabilityTimer.current) clearTimeout(availabilityTimer.current)
     }
   }, [form.equipment_id, form.start_date, form.start_hour, form.end_date, form.end_hour])
+
+  // ── Equipment availability check ───────────────────────────────────────────
+
+  useEffect(() => {
+    if (!form.equipment_id) {
+      setEquipmentAvailability(null)
+      return
+    }
+
+    const fetchAvailability = async () => {
+      try {
+        setCheckingEquipmentAvailability(true)
+        const data = await reservationService.getNextAvailable(Number(form.equipment_id))
+        setEquipmentAvailability(data)
+
+        // Auto-fill date and hour if equipment is available
+        if (data.is_available_now) {
+          const now = new Date()
+          const dateStr = now.toISOString().split('T')[0]
+          const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0')
+          setForm(prev => ({
+            ...prev,
+            start_date: dateStr,
+            start_hour: timeStr,
+            end_hour: String((now.getHours() + 1) % 24).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
+          }))
+        } else if (data.next_available) {
+          setForm(prev => ({
+            ...prev,
+            start_date: data.next_available.date,
+            start_hour: data.next_available.time,
+            end_hour: String(parseInt(data.next_available.time.split(':')[0]) + 1).padStart(2, '0') + ':' + data.next_available.time.split(':')[1],
+          }))
+        }
+      } catch {
+        setEquipmentAvailability(null)
+      } finally {
+        setCheckingEquipmentAvailability(false)
+      }
+    }
+
+    fetchAvailability()
+  }, [form.equipment_id])
 
   // ── Filter ─────────────────────────────────────────────────────────────────
 
@@ -369,6 +444,7 @@ const ReservationsPage: React.FC = () => {
               onClick={() => {
                 setForm({ ...EMPTY_FORM })
                 setFormErrors({})
+                setEquipmentQuery('')
                 setAvailabilityStatus('unknown')
                 setShowModal(true)
               }}
@@ -604,26 +680,66 @@ const ReservationsPage: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Equipo <span className="text-red-400">*</span>
               </label>
-              <select
-                value={form.equipment_id}
-                onChange={(e) => setForm({ ...form, equipment_id: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white transition-colors ${
-                  formErrors.equipment_id ? 'border-red-400 bg-red-50' : 'border-gray-200'
-                }`}
-              >
-                <option value="">Seleccionar equipo disponible…</option>
-                {equipment.map((eq) => {
-                  const catName = eq.category?.name ?? ''
-                  return (
-                    <option key={eq.id} value={eq.id}>
-                      {eq.name}{catName ? ` · ${catName}` : ''}{eq.stock != null ? ` · Stock: ${eq.stock}` : ''}
-                    </option>
-                  )
-                })}
-              </select>
-              <FieldError msg={formErrors.equipment_id} />
+                <input
+                  type="text"
+                  value={equipmentQuery}
+                  onChange={(e) => setEquipmentQuery(e.target.value)}
+                  placeholder="Buscar equipo por nombre, categoría o código"
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors mb-3"
+                />
+                <select
+                  value={form.equipment_id}
+                  onChange={(e) => setForm({ ...form, equipment_id: e.target.value })}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white transition-colors ${
+                    formErrors.equipment_id ? 'border-red-400 bg-red-50' : 'border-gray-200'
+                  }`}
+                >
+                  <option value="">Seleccionar equipo disponible…</option>
+                  {filteredEquipment.length > 0 ? filteredEquipment.map((eq) => {
+                    const catName = eq.category?.name ?? ''
+                    return (
+                      <option key={eq.id} value={String(eq.id)}>
+                        {eq.name}{catName ? ` · ${catName}` : ''}{eq.stock != null ? ` · Stock: ${eq.stock}` : ''}
+                      </option>
+                    )
+                  }) : (
+                    <option value="" disabled>No hay equipos que coincidan con la búsqueda.</option>
+                  )}
+                </select>
+                <p className="text-xs text-slate-500 mt-2">
+                  Mostrando {filteredEquipment.length} de {equipment.length} equipos disponibles.
+                </p>
 
-              {/* Vista previa del equipo seleccionado */}
+                {equipmentQuery.trim() && (
+                  <div className="mt-3 grid gap-2">
+                    {filteredEquipment.length > 0 ? filteredEquipment.slice(0, 5).map((eq) => {
+                      const isSelected = String(eq.id) === form.equipment_id
+                      return (
+                        <button
+                          key={eq.id}
+                          type="button"
+                          onClick={() => setForm({ ...form, equipment_id: String(eq.id) })}
+                          className={`w-full rounded-2xl border px-3 py-3 text-left text-sm transition ${
+                            isSelected
+                              ? 'border-blue-300 bg-blue-50 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <p className="font-semibold text-slate-900 truncate">{eq.name}</p>
+                          <p className="text-xs text-slate-500 mt-1 truncate">
+                            {eq.category?.name ?? 'Sin categoría'} · {eq.code}{eq.stock != null ? ` · Stock: ${eq.stock}` : ''}
+                          </p>
+                        </button>
+                      )
+                    }) : (
+                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                        No se encontraron coincidencias para "{equipmentQuery}".
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <FieldError msg={formErrors.equipment_id} />
               {form.equipment_id && (() => {
                 const sel = equipment.find(e => String(e.id) === form.equipment_id)
                 if (!sel) return null
@@ -668,6 +784,58 @@ const ReservationsPage: React.FC = () => {
               )}
             </div>
 
+            {/* Disponibilidad del equipo */}
+            {form.equipment_id && (
+              <div>
+                {checkingEquipmentAvailability ? (
+                  <div className="flex items-center justify-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="animate-spin">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </div>
+                    <span className="text-sm text-blue-700 font-medium">Verificando disponibilidad...</span>
+                  </div>
+                ) : equipmentAvailability ? (
+                  <div className={`p-4 rounded-lg border ${
+                    equipmentAvailability.is_available_now
+                      ? 'bg-green-50 border-green-200'
+                      : 'bg-amber-50 border-amber-200'
+                  }`}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        {equipmentAvailability.is_available_now ? (
+                          <>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                              <p className="text-sm font-semibold text-green-700">Disponible ahora</p>
+                            </div>
+                            <p className="text-xs text-green-600">
+                              Puedes usar este equipo a partir de ahora. La fecha y hora han sido auto-rellenadas.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                              <p className="text-sm font-semibold text-amber-700">Próximo disponible</p>
+                            </div>
+                            <p className="text-xs text-amber-600 mb-2">
+                              Próximo slot: <strong>{equipmentAvailability.next_available.date}</strong> a las{' '}
+                              <strong>{equipmentAvailability.next_available.time}</strong>
+                            </p>
+                            <p className="text-xs text-amber-600">
+                              La fecha y hora han sido auto-rellenadas con el próximo horario disponible.
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             {/* Fecha y hora de inicio */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -688,7 +856,8 @@ const ReservationsPage: React.FC = () => {
                   onChange={(e) => setForm({ ...form, start_hour: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 >
-                  {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                  <option value="">Seleccionar hora...</option>
+                  {getAvailableTimeOptions(form.start_date).map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <FieldError msg={formErrors.start_date} />
@@ -714,6 +883,7 @@ const ReservationsPage: React.FC = () => {
                   onChange={(e) => setForm({ ...form, end_hour: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 >
+                  <option value="">Seleccionar hora...</option>
                   {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
