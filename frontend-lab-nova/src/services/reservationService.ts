@@ -64,6 +64,12 @@ export const reservationService = {
     return response.data.data
   },
 
+  // POST /reservations/:id/complete
+  completeReservation: async (id: number): Promise<Reservation> => {
+    const response = await apiClient.post(`/reservations/${id}/complete`)
+    return response.data.data
+  },
+
   // GET /reservations/:id/logs → { success, data: [...] }
   getReservationLogs: async (reservationId: number): Promise<ReservationLog[]> => {
     const response = await apiClient.get(`/reservations/${reservationId}/logs`)
