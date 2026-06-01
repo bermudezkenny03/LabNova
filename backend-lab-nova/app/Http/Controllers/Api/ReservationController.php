@@ -235,6 +235,8 @@ class ReservationController extends Controller
                 description: 'Reserva aprobada'
             );
 
+            $reservation->refresh()->load(['user', 'equipment.equipmentStatus', 'approver', 'reservationStatus']);
+
             return response()->json(['success' => true, 'message' => 'Reserva aprobada', 'data' => $reservation]);
         } catch (ModelNotFoundException) {
             return response()->json(['success' => false, 'message' => 'Reserva no encontrada'], 404);
@@ -272,11 +274,60 @@ class ReservationController extends Controller
                 description: 'Reserva rechazada: ' . $request->reason
             );
 
+            $reservation->refresh()->load(['user', 'equipment.equipmentStatus', 'approver', 'reservationStatus']);
+
             return response()->json(['success' => true, 'message' => 'Reserva rechazada', 'data' => $reservation]);
         } catch (ModelNotFoundException) {
             return response()->json(['success' => false, 'message' => 'Reserva no encontrada'], 404);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Error al rechazar reserva', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function complete(Request $request, int $id): JsonResponse
+    {
+        try {
+            $reservation = Reservation::with(['reservationStatus', 'user', 'equipment.equipmentStatus', 'approver'])->findOrFail($id);
+
+            $currentStatusCode = $reservation->reservationStatus?->code;
+            if ($currentStatusCode !== 'approved') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solo las reservas aprobadas pueden marcarse como completadas.',
+                ], 422);
+            }
+
+            if ($reservation->end_time->isFuture()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede completar una reserva antes de que finalice su horario.',
+                ], 422);
+            }
+
+            $completedStatus = ReservationStatus::where('code', 'completed')->first();
+            if (!$completedStatus) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Estado de reserva no disponible.',
+                ], 500);
+            }
+
+            $reservation->update(['reservation_status_id' => $completedStatus->id]);
+
+            $this->logService->logReservationAction(
+                reservationId: $reservation->id,
+                actionCode: 'completed',
+                userId: $request->user()->id,
+                description: 'Reserva marcada como completada'
+            );
+
+            $reservation->refresh()->load(['user', 'equipment.equipmentStatus', 'approver', 'reservationStatus']);
+
+            return response()->json(['success' => true, 'message' => 'Reserva completada correctamente.', 'data' => $reservation]);
+        } catch (ModelNotFoundException) {
+            return response()->json(['success' => false, 'message' => 'Reserva no encontrada'], 404);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Error al completar reserva', 'error' => $e->getMessage()], 500);
         }
     }
 
@@ -328,6 +379,8 @@ class ReservationController extends Controller
                 userId: $request->user()->id,
                 description: 'Reserva cancelada'
             );
+
+            $reservation->refresh()->load(['user', 'equipment.equipmentStatus', 'approver', 'reservationStatus']);
 
             return response()->json(['success' => true, 'message' => 'Reserva cancelada correctamente.', 'data' => $reservation]);
         } catch (ModelNotFoundException) {

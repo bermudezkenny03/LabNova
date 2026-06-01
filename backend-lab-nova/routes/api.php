@@ -77,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Aprobar/Rechazar - Solo Admin y Encargado Lab
         Route::post('/{id}/approve', [ReservationController::class, 'approve'])->middleware('permission:reservations,edit');
         Route::post('/{id}/reject', [ReservationController::class, 'reject'])->middleware('permission:reservations,edit');
+        Route::post('/{id}/complete', [ReservationController::class, 'complete'])->middleware('permission:reservations,edit');
 
         // Cancelar propia reserva
         Route::post('/{id}/cancel', [ReservationController::class, 'cancel']);

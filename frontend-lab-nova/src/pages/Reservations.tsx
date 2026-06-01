@@ -157,6 +157,7 @@ const ReservationsPage: React.FC = () => {
   const [rejectModal,   setRejectModal]   = useState<{ id: number } | null>(null)
   const [rejectReason,  setRejectReason]  = useState('')
   const [actionLoading, setActionLoading] = useState<number | null>(null)
+  const [completeModal, setCompleteModal] = useState<{ id: number } | null>(null)
 
   const [detailReservation, setDetailReservation] = useState<Reservation | null>(null)
 
@@ -411,6 +412,20 @@ const ReservationsPage: React.FC = () => {
     }
   }
 
+  const handleComplete = async (id: number) => {
+    try {
+      setActionLoading(id)
+      await reservationService.completeReservation(id)
+      toast.success('Reserva marcada como completada.')
+      loadReservations(currentPage)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg || 'No se pudo completar la reserva.')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   // ── Date formatters ────────────────────────────────────────────────────────
 
   const fmtDate = (d: string) =>
@@ -601,6 +616,16 @@ const ReservationsPage: React.FC = () => {
                                   Cancelar
                                 </ProtectedButton>
                               )
+                            )}
+                            {r.status === 'approved' && (perms.isAdmin() || perms.isSuperAdmin() || perms.isLabManager()) && (
+                              <ProtectedButton
+                                permission={{ module: 'reservations', action: 'edit' }}
+                                onClick={() => setCompleteModal({ id: r.id })}
+                                disabled={actionLoading === r.id}
+                                className="text-blue-600 hover:text-blue-800 text-xs font-medium disabled:opacity-40 transition-colors"
+                              >
+                                Completar
+                              </ProtectedButton>
                             )}
                           </div>
                         </td>
@@ -999,6 +1024,42 @@ const ReservationsPage: React.FC = () => {
                 className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
                 {actionLoading !== null ? 'Rechazando…' : 'Confirmar Rechazo'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Modal: Completar Reserva ─────────────────────────────────────────── */}
+      {completeModal && (
+        <Modal title="Completar Reserva" onClose={() => setCompleteModal(null)} size="sm">
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 flex gap-3">
+              <svg className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-blue-700 leading-relaxed">Confirmar que la reserva ha finalizado y marcar como <strong>Completada</strong>. Esta acción es irreversible.</p>
+            </div>
+            <div className="text-sm text-gray-700">
+              <p>¿Deseas marcar esta reserva como completada?</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setCompleteModal(null)}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (!completeModal) return
+                  handleComplete(completeModal.id)
+                  setCompleteModal(null)
+                }}
+                disabled={actionLoading !== null}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {actionLoading !== null ? 'Procesando…' : 'Confirmar'}
               </button>
             </div>
           </div>
