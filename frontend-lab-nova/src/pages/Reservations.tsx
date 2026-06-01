@@ -84,6 +84,16 @@ const getAvailableTimeOptions = (selectedDate: string): string[] => {
   return TIME_OPTIONS.filter(time => time > currentTime)
 }
 
+const getTimeInputMin = (selectedDate: string): string => {
+  const today = new Date().toISOString().split('T')[0]
+  if (selectedDate !== today) return '07:00'
+
+  const now = new Date()
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
 // ─── Image helpers ────────────────────────────────────────────────────────────
 
 const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '')
@@ -891,14 +901,15 @@ const ReservationsPage: React.FC = () => {
                     formErrors.start_date ? 'border-red-400 bg-red-50' : 'border-gray-200'
                   }`}
                 />
-                <select
+                <input
+                  type="time"
                   value={form.start_hour}
                   onChange={(e) => setForm({ ...form, start_hour: e.target.value })}
+                  min={getTimeInputMin(form.start_date)}
+                  max="22:00"
+                  step="60"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                >
-                  <option value="">Seleccionar hora...</option>
-                  {getAvailableTimeOptions(form.start_date).map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                />
               </div>
               <FieldError msg={formErrors.start_date} />
             </div>
@@ -918,14 +929,15 @@ const ReservationsPage: React.FC = () => {
                     formErrors.end_date ? 'border-red-400 bg-red-50' : 'border-gray-200'
                   }`}
                 />
-                <select
+                <input
+                  type="time"
                   value={form.end_hour}
                   onChange={(e) => setForm({ ...form, end_hour: e.target.value })}
+                  min={form.start_hour || '07:00'}
+                  max="22:00"
+                  step="60"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                >
-                  <option value="">Seleccionar hora...</option>
-                  {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                />
               </div>
               <FieldError msg={formErrors.end_date} />
             </div>
