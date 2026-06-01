@@ -301,6 +301,21 @@ const ReservationsPage: React.FC = () => {
     fetchAvailability()
   }, [form.equipment_id])
 
+  useEffect(() => {
+    if (!form.start_date) return
+
+    const availableStartHours = getAvailableTimeOptions(form.start_date)
+    if (availableStartHours.length === 0) return
+
+    if (!availableStartHours.includes(form.start_hour)) {
+      setForm((prev) => ({
+        ...prev,
+        start_hour: availableStartHours[0],
+        end_hour: availableStartHours[1] ?? prev.end_hour,
+      }))
+    }
+  }, [form.start_date, form.start_hour])
+
   // ── Filter ─────────────────────────────────────────────────────────────────
 
   const filtered = filterStatus === 'all'
