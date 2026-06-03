@@ -30,6 +30,38 @@ class EquipmentController extends Controller
         }
     }
 
+    /**
+     * Buscar equipos por término (nombre o código).
+     * GET /equipment/search?q=term
+     */
+    public function search(Request $request): JsonResponse
+    {
+        try {
+            $q = (string) $request->query('q', '') ;
+
+            if (trim($q) === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Parámetro de búsqueda vacío.'
+                ], 400);
+            }
+
+            $equipment = Equipment::with(['category', 'images', 'equipmentStatus'])
+                ->where('name', 'like', "%{$q}%")
+                ->orWhere('code', 'like', "%{$q}%")
+                ->latest()
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Resultados de búsqueda',
+                'data' => EquipmentResource::collection($equipment),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Error al buscar equipos', 'error' => $e->getMessage()], 500);
+        }
+    }
+
     public function store(EquipmentStoreRequest $request): JsonResponse
     {
         try {

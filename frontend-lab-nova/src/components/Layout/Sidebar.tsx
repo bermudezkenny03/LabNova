@@ -46,7 +46,12 @@ interface NavItem {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  isOpen: boolean
+  onClose: () => void
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation()
   const perms    = usePermissions()
   const { user } = useAuth()
@@ -70,72 +75,81 @@ const Sidebar: React.FC = () => {
     : 'U'
 
   return (
-    <aside className="w-60 bg-slate-900 flex flex-col shrink-0 border-r border-slate-800">
+    <>
+      {/* Overlay for mobile menu */}
+      <div
+        className={`fixed inset-0 z-20 bg-slate-900/50 transition-opacity duration-300 lg:hidden ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-5 h-16 border-b border-slate-800 shrink-0">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm shrink-0">
-          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-          </svg>
-        </div>
-        <div className="leading-tight min-w-0">
-          <p className="text-white font-bold text-sm leading-none">LabNova</p>
-          <p className="text-slate-500 text-xs mt-0.5 truncate">Sistema de reservas LabNova</p>
-        </div>
-      </div>
+      <aside className={`fixed inset-y-0 left-0 z-30 w-full max-w-xs transform overflow-y-auto bg-slate-950 border-r border-slate-800 p-3 transition-transform duration-300 lg:static lg:translate-x-0 lg:w-60 lg:max-w-none lg:flex lg:flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        <p className="px-3 text-xs font-semibold text-slate-600 uppercase tracking-widest mb-2">
-          Menú
-        </p>
-        {visibleItems.map(item => {
-          const active = location.pathname === item.path
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative ${
-                active
-                  ? 'bg-blue-600/15 text-blue-400'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
-              }`}
-            >
-              {/* Accent bar */}
-              {active && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-500 rounded-r-full" />
-              )}
-              <span className={`shrink-0 transition-colors ${active ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
-                {item.icon}
-              </span>
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
-
-      {/* User profile */}
-      <div className="px-3 py-4 border-t border-slate-800">
-        <Link
-          to="/profile"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800 transition-colors group"
-        >
-          <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center shrink-0">
-            <span className="text-xs font-bold text-blue-400">{initials}</span>
+        {/* Logo */}
+        <div className="flex items-center gap-3 px-3 h-16 border-b border-slate-800 shrink-0">
+          <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center shadow-sm shrink-0">
+            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+            </svg>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-slate-300 truncate group-hover:text-white transition-colors">
-              {fullName}
-            </p>
-            <p className="text-xs text-slate-600 truncate">
-              {(user?.role as { name?: string })?.name ?? 'Sin rol'}
-            </p>
+          <div className="leading-tight min-w-0">
+            <p className="text-white font-bold text-base sm:text-sm md:text-base leading-none">LabNova</p>
+            <p className="text-slate-500 text-[11px] sm:text-xs mt-0.5 truncate">Sistema de reservas</p>
           </div>
-        </Link>
-      </div>
+        </div>
 
-    </aside>
+        {/* Navigation */}
+        <nav className="flex-1 px-2 py-4 space-y-1">
+          <p className="px-3 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">
+            Menú
+          </p>
+          {visibleItems.map(item => {
+            const active = location.pathname === item.path
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={onClose}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm sm:text-sm font-medium transition-all group relative ${
+                  active
+                    ? 'bg-blue-600/15 text-blue-300'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+                }`}
+              >
+                {active && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-blue-500 rounded-r-full" />
+                )}
+                <span className={`shrink-0 transition-colors ${active ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
+                  {item.icon}
+                </span>
+                <span className="truncate">{item.label}</span>
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* User profile */}
+        <div className="px-3 py-4 border-t border-slate-800">
+          <Link
+            to="/profile"
+            onClick={onClose}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 transition-colors group"
+          >
+            <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center shrink-0">
+              <span className="text-sm font-semibold text-blue-300">{initials}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-slate-200 truncate group-hover:text-white transition-colors">
+                {fullName}
+              </p>
+              <p className="text-xs text-slate-500 truncate">
+                {(user?.role as { name?: string })?.name ?? 'Sin rol'}
+              </p>
+            </div>
+          </Link>
+        </div>
+      </aside>
+    </>
   )
 }
 

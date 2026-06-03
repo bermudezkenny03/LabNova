@@ -795,38 +795,26 @@ const ReservationsPage: React.FC = () => {
                   )}
                 </div>
 
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 mb-2">
                   Mostrando {filteredEquipment.length} de {equipment.length} equipos disponibles.
                 </p>
 
-                {equipmentQuery.trim() && (
-                  <div className="grid gap-2">
-                    {filteredEquipment.length > 0 ? filteredEquipment.slice(0, 5).map((eq) => {
-                      const isSelected = String(eq.id) === form.equipment_id
-                      return (
-                        <button
-                          key={eq.id}
-                          type="button"
-                          onClick={() => setForm({ ...form, equipment_id: String(eq.id) })}
-                          className={`w-full rounded-3xl border px-4 py-3 text-left text-sm transition ${
-                            isSelected
-                              ? 'border-blue-300 bg-blue-50 shadow-sm'
-                              : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          <p className="font-semibold text-slate-900 truncate">{eq.name}</p>
-                          <p className="text-xs text-slate-500 mt-1 truncate">
-                            {eq.category?.name ?? 'Sin categoría'} · {eq.code}{eq.stock != null ? ` · Stock: ${eq.stock}` : ''}
-                          </p>
-                        </button>
-                      )
-                    }) : (
-                      <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                        No se encontraron coincidencias para "{equipmentQuery}".
-                      </div>
+                <div>
+                  <select
+                    value={form.equipment_id}
+                    onChange={(e) => setForm({ ...form, equipment_id: e.target.value })}
+                    size={Math.min(Math.max(filteredEquipment.length, 1), 6)}
+                    className="w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors"
+                  >
+                    {filteredEquipment.length > 0 ? filteredEquipment.map((eq) => (
+                      <option key={eq.id} value={String(eq.id)}>
+                        {eq.name} — {eq.category?.name ?? 'Sin categoría'}{eq.stock != null ? ` · Stock: ${eq.stock}` : ''}
+                      </option>
+                    )) : (
+                      <option value="" disabled>No se encontraron equipos.</option>
                     )}
-                  </div>
-                )}
+                  </select>
+                </div>
 
                 <FieldError msg={formErrors.equipment_id} />
               </div>
@@ -940,60 +928,6 @@ const ReservationsPage: React.FC = () => {
                 </div>
                 <FieldError msg={formErrors.end_date} />
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Hora de Inicio <span className="text-red-400">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="date"
-                  value={form.start_date}
-                  onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                  min={new Date().toISOString().slice(0, 10)}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${
-                    formErrors.start_date ? 'border-red-400 bg-red-50' : 'border-gray-200'
-                  }`}
-                />
-                <input
-                  type="time"
-                  value={form.start_hour}
-                  onChange={(e) => setForm({ ...form, start_hour: e.target.value })}
-                  min={getTimeInputMin(form.start_date)}
-                  max="22:00"
-                  step="3600"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                />
-              </div>
-              <FieldError msg={formErrors.start_date} />
-            </div>
-
-            {/* Fecha y hora de fin */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Hora de Fin <span className="text-red-400">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="date"
-                  value={form.end_date}
-                  onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                  min={form.start_date || new Date().toISOString().slice(0, 10)}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${
-                    formErrors.end_date ? 'border-red-400 bg-red-50' : 'border-gray-200'
-                  }`}
-                />
-                <input
-                  type="time"
-                  value={form.end_hour}
-                  onChange={(e) => setForm({ ...form, end_hour: e.target.value })}
-                  min={form.start_hour || '07:00'}
-                  max="22:00"
-                  step="60"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                />
-              </div>
-              <FieldError msg={formErrors.end_date} />
             </div>
 
             {/* Indicador de disponibilidad */}

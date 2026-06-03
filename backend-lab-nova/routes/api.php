@@ -53,6 +53,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Equipment - Admin y Encargado Lab
     Route::prefix('equipment')->middleware('permission:equipment,view')->group(function () {
+        // Búsqueda de equipos por término (nombre o código)
+        Route::get('/search', [EquipmentController::class, 'search']);
         Route::get('/', [EquipmentController::class, 'index']);
         Route::get('/{id}', [EquipmentController::class, 'show']);
         Route::post('/', [EquipmentController::class, 'store'])->middleware('permission:equipment,create');

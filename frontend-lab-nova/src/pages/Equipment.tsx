@@ -270,7 +270,7 @@ const EquipmentPage: React.FC = () => {
     const errors: Partial<Record<keyof EquipmentForm, string>> = {}
     if (!form.name.trim()) errors.name = 'El nombre es requerido'
     if (!form.code.trim()) errors.code = 'El codigo es requerido'
-    if (!form.category_id) errors.category_id = 'La categoria es requerida'
+    if (!editingId && !form.category_id) errors.category_id = 'La categoria es requerida'
     if (!form.description.trim()) errors.description = 'La descripción es requerida'
     if (!form.stock.trim()) errors.stock = 'El stock es requerido'
     else if (isNaN(Number(form.stock))) errors.stock = 'El stock debe ser un numero'
@@ -419,7 +419,7 @@ const EquipmentPage: React.FC = () => {
           <p className="text-gray-500 text-sm mt-0.5">{total} equipos registrados</p>
         </div>
         <div className="flex gap-2">
-          <IfCan permission={{ module: 'equipment', action: 'edit' }}>
+          <IfCan permission={{ module: 'categories', action: 'view' }}>
             <button
               onClick={() => { setCatForm({ name: '', description: '' }); setEditingCatId(null); setCatError(null); setShowCatModal(true) }}
               className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-gray-200"
@@ -702,11 +702,25 @@ const EquipmentPage: React.FC = () => {
                   className={cls('code')} placeholder="Ej: MIC-001" />
               )}
               {field('Categoria *', 'category_id',
-                <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                  className={cls('category_id')}>
-                  <option value="">Seleccionar categoria...</option>
-                  {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                </select>
+                <div className="space-y-2">
+                  <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                    className={cls('category_id')}>
+                    <option value="">Seleccionar categoria...</option>
+                    {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                  </select>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-gray-500">{categories.length === 0 ? 'No hay categorías registradas.' : 'Puedes crear una nueva categoría si hace falta.'}</span>
+                    <IfCan permission={{ module: 'categories', action: 'create' }}>
+                      <button
+                        type="button"
+                        onClick={() => { setCatForm({ name: '', description: '' }); setEditingCatId(null); setCatError(null); setShowCatModal(true) }}
+                        className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                      >
+                        + Agregar categoría
+                      </button>
+                    </IfCan>
+                  </div>
+                </div>
               )}
               {field('Stock *', 'stock',
                 <input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
@@ -812,10 +826,14 @@ const EquipmentPage: React.FC = () => {
                     Cancelar edición
                   </button>
                 )}
-                <button onClick={handleSaveCat} disabled={savingCat}
-                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                <ProtectedButton
+                  permission={{ module: 'categories', action: editingCatId ? 'edit' : 'create' }}
+                  disabled={savingCat}
+                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  onClick={handleSaveCat}
+                >
                   {savingCat ? 'Guardando...' : editingCatId ? 'Actualizar' : '+ Agregar'}
-                </button>
+                </ProtectedButton>
               </div>
             </div>
             <div className="border border-gray-100 rounded-lg overflow-hidden">
@@ -836,12 +854,21 @@ const EquipmentPage: React.FC = () => {
                         <td className="px-4 py-2 font-medium text-gray-800">{cat.name}</td>
                         <td className="px-4 py-2 text-gray-500 text-xs">{cat.description ?? '—'}</td>
                         <td className="px-4 py-2 text-right">
-                          <button onClick={() => { setEditingCatId(cat.id); setCatForm({ name: cat.name, description: cat.description ?? '' }) }}
-                            className="text-blue-600 hover:text-blue-800 text-xs font-medium mr-3">Editar</button>
-                          <button onClick={() => handleDeleteCat(cat.id)} disabled={deletingCatId === cat.id}
-                            className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-50">
+                          <ProtectedButton
+                            permission={{ module: 'categories', action: 'edit' }}
+                            onClick={() => { setEditingCatId(cat.id); setCatForm({ name: cat.name, description: cat.description ?? '' }) }}
+                            className="text-blue-600 hover:text-blue-800 text-xs font-medium mr-3"
+                          >
+                            Editar
+                          </ProtectedButton>
+                          <ProtectedButton
+                            permission={{ module: 'categories', action: 'delete' }}
+                            onClick={() => handleDeleteCat(cat.id)}
+                            disabled={deletingCatId === cat.id}
+                            className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-50"
+                          >
                             {deletingCatId === cat.id ? '...' : 'Eliminar'}
-                          </button>
+                          </ProtectedButton>
                         </td>
                       </tr>
                     ))}

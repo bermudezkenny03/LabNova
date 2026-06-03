@@ -17,7 +17,7 @@ class EquipmentUpdateRequest extends FormRequest
         $id = $this->route('id');
 
         return [
-            'category_id' => ['filled', 'exists:categories,id'],
+            'category_id' => ['sometimes', 'nullable', 'exists:categories,id'],
             'name'        => ['filled', 'string', 'max:150'],
             'code'        => ['filled', 'string', 'max:50', Rule::unique('equipment', 'code')->ignore($id)],
             'description' => ['nullable', 'string'],
