@@ -28,8 +28,12 @@ services:
         fromDatabase:
           name: labnova-db
           property: connectionString
+      - key: APP_URL
+        value: https://labnova-backend.onrender.com
+      - key: FILESYSTEM_DISK
+        value: public
       - key: CORS_ALLOWED_ORIGINS
-        value: ""
+        value: "https://labnova.vercel.app"
     volumes:
       - path: /app/storage/app/public
         name: labnova-storage
@@ -39,4 +43,3 @@ databases:
     plan: free
     databaseName: labnova
     user: labnova_user
-
