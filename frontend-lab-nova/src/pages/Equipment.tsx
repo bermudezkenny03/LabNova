@@ -342,7 +342,6 @@ const EquipmentPage: React.FC = () => {
           ? current.map((item) => item.id === saved.id ? saved : item)
           : [saved, ...current]
       })
-      loadEquipment()
       showSuccess(editingId ? 'Equipo actualizado correctamente.' : 'Equipo registrado correctamente.')
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } }
