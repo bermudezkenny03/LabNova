@@ -396,7 +396,7 @@ const EquipmentPage: React.FC = () => {
 
   // ── Form field helper ──────────────────────────────────────────────────────
 
-  const field = (label: string, key: keyof EquipmentForm, input: React.ReactNode) => (
+  const field = (label: React.ReactNode, key: keyof EquipmentForm, input: React.ReactNode) => (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       {input}
@@ -701,7 +701,11 @@ const EquipmentPage: React.FC = () => {
                 <input type="text" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })}
                   className={cls('code')} placeholder="Ej: MIC-001" />
               )}
-              {field('Categoria *', 'category_id',
+              {field(
+                <>
+                  Categoria {!editingId && <span className="text-red-400">*</span>}
+                </>,
+                'category_id',
                 <div className="space-y-2">
                   <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
                     className={cls('category_id')}>
@@ -709,7 +713,10 @@ const EquipmentPage: React.FC = () => {
                     {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                   </select>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-gray-500">{categories.length === 0 ? 'No hay categorías registradas.' : 'Puedes crear una nueva categoría si hace falta.'}</span>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-gray-500">{categories.length === 0 ? 'No hay categorías registradas.' : 'Puedes crear una nueva categoría si hace falta.'}</span>
+                      {editingId && <span className="text-xs text-gray-400">(dejar vacío para conservar la categoría actual)</span>}
+                    </div>
                     <IfCan permission={{ module: 'categories', action: 'create' }}>
                       <button
                         type="button"
