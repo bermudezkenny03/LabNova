@@ -6,7 +6,6 @@ use App\Models\Equipment;
 use App\Models\EquipmentImage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EquipmentResource;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -30,14 +29,10 @@ class EquipmentController extends Controller
         }
     }
 
-    /**
-     * Buscar equipos por término (nombre o código).
-     * GET /equipment/search?q=term
-     */
     public function search(Request $request): JsonResponse
     {
         try {
-            $q = (string) $request->query('q', '') ;
+            $q = (string) $request->query('q', '');
 
             if (trim($q) === '') {
                 return response()->json([
@@ -128,10 +123,8 @@ class EquipmentController extends Controller
 
             $model = Equipment::findOrFail($id);
 
-            // Eliminar imagen primaria anterior
             $primary = $model->images()->where('is_primary', true)->first();
             if ($primary) {
-                Storage::disk('public')->delete($primary->image_path);
                 $primary->delete();
             }
 

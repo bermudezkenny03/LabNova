@@ -82,7 +82,7 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({ preview, onFile, label = 
     >
       {preview ? (
         <>
-          <img src={preview} alt="Vista previa del equipo" loading="lazy" className="w-full h-full object-cover" />
+                <img src={preview} alt="Vista previa del equipo" loading="lazy" className="w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_IMAGE }} />
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
             <p className="text-white text-xs font-medium">Haz clic o arrastra para cambiar</p>
           </div>
@@ -115,6 +115,8 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({ preview, onFile, label = 
 // ─── Equipment image helper ───────────────────────────────────────────────────
 
 const API_ORIGIN = import.meta.env.VITE_API_BASE_URL
+
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="100%" height="100%" fill="%23f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23999" font-size="24">Sin imagen</text></svg>'
 
 const normalizeImageUrl = (url?: string | null): string | null => {
   if (!url) return null

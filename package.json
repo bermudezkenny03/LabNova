@@ -4,5 +4,8 @@
   "version": "0.0.0",
   "scripts": {
     "build": "cd frontend-lab-nova && npm ci && npm run build"
+  },
+  "dependencies": {
+    "cloudinary": "^2.10.0"
   }
 }
