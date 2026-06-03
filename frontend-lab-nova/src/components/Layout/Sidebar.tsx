@@ -105,7 +105,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         aria-hidden="true"
       />
 
-      <aside className={`fixed inset-y-0 left-0 z-30 w-full max-w-xs transform overflow-y-auto bg-slate-950 border-r border-slate-800 p-3 transition-transform duration-300 lg:static lg:translate-x-0 lg:w-60 lg:max-w-none lg:flex lg:flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+      <aside className={`fixed inset-y-0 left-0 z-30 w-full max-w-xs transform overflow-y-auto bg-slate-950/95 border-r border-slate-800 p-3 transition-transform duration-300 shadow-2xl lg:static lg:translate-x-0 lg:w-60 lg:max-w-none lg:flex lg:flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+
 
         {/* Logo */}
         <div className="flex items-center gap-3 px-3 h-16 border-b border-slate-800 shrink-0">
@@ -133,9 +134,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 key={item.path}
                 to={item.path}
                 onClick={onClose}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm sm:text-sm font-medium transition-all group relative ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm sm:text-sm font-medium transition-all group relative border border-transparent ${
                   active
-                    ? 'bg-blue-600/15 text-blue-300'
+                    ? 'bg-blue-600/15 text-blue-300 border-blue-500/10 shadow-sm'
                     : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
                 }`}
               >
@@ -164,16 +165,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <Link
             to="/profile"
             onClick={onClose}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 transition-colors group"
+            className="flex items-center gap-3 px-4 py-3 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-inner hover:bg-slate-800 transition-colors group"
           >
-            <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center shrink-0">
-              <span className="text-sm font-semibold text-blue-300">{initials}</span>
+            <div className="w-11 h-11 rounded-full bg-slate-700 flex items-center justify-center shrink-0 shadow-sm">
+              <span className="text-sm font-semibold text-white">{initials}</span>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-slate-200 truncate group-hover:text-white transition-colors">
+              <p className="text-sm font-semibold text-white truncate group-hover:text-blue-300 transition-colors">
                 {fullName}
               </p>
-              <p className="text-xs text-slate-500 truncate">
+              <p className="text-xs text-slate-400 truncate">
                 {(user?.role as { name?: string })?.name ?? 'Sin rol'}
               </p>
             </div>

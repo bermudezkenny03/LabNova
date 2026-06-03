@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['category_id', 'name', 'code', 'description', 'stock', 'equipment_status_id', 'is_active'])]
+#[Fillable(['category_id', 'name', 'code', 'description', 'stock', 'equipment_status_id', 'is_active', 'status'])]
 #[Hidden([])]
 
 /**
@@ -92,6 +92,43 @@ class Equipment extends Model
     public function equipmentStatus(): BelongsTo
     {
         return $this->belongsTo(EquipmentStatus::class, 'equipment_status_id');
+    }
+
+    /**
+     * Asigna el estado del equipo por código.
+     *
+     * @param string|null $status
+     * @return void
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $equipment) {
+            if ($equipment->status === 'out_of_service') {
+                $equipment->is_active = false;
+            }
+        });
+    }
+
+    public function setStatusAttribute(?string $status): void
+    {
+        if ($status === null) {
+            return;
+        }
+
+        $statusId = EquipmentStatus::where('code', $status)->value('id');
+        if ($statusId) {
+            $this->attributes['equipment_status_id'] = $statusId;
+        }
+    }
+
+    /**
+     * Devuelve el código del estado actual del equipo.
+     *
+     * @return string|null
+     */
+    public function getStatusAttribute(): ?string
+    {
+        return $this->equipmentStatus?->code ?? null;
     }
 
     /**

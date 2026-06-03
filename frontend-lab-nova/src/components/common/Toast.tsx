@@ -48,17 +48,17 @@ const LABELS: Record<ToastType, string> = {
 }
 
 const BORDER_COLORS: Record<ToastType, string> = {
-  success: 'border-l-green-500',
-  error: 'border-l-red-500',
-  warning: 'border-l-amber-500',
-  info: 'border-l-blue-500',
+  success: 'border-l-4 border-green-500',
+  error: 'border-l-4 border-red-500',
+  warning: 'border-l-4 border-amber-500',
+  info: 'border-l-4 border-blue-500',
 }
 
 const BAR_COLORS: Record<ToastType, string> = {
-  success: 'bg-green-500',
-  error: 'bg-red-500',
-  warning: 'bg-amber-500',
-  info: 'bg-blue-500',
+  success: 'bg-gradient-to-r from-emerald-500 to-green-400',
+  error: 'bg-gradient-to-r from-red-500 to-rose-500',
+  warning: 'bg-gradient-to-r from-amber-500 to-orange-400',
+  info: 'bg-gradient-to-r from-sky-500 to-blue-500',
 }
 
 interface ToastItemProps {
@@ -87,8 +87,8 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
   return (
     <div
       className={`
-        relative overflow-hidden bg-white rounded-xl shadow-xl border border-gray-100 border-l-4
-        ${BORDER_COLORS[toast.type]} w-80 flex items-start gap-3 p-4
+        relative overflow-hidden rounded-3xl shadow-2xl border border-slate-200 bg-white/95 backdrop-blur-sm
+        ${BORDER_COLORS[toast.type]} w-80 flex items-start gap-4 p-4
         transition-all duration-350 ease-out
         ${visible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}
       `}

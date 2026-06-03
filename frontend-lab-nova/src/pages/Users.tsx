@@ -311,13 +311,13 @@ const UsersPage: React.FC = () => {
       <ToastContainer toasts={toast.toasts} onRemove={toast.remove} />
 
       {/* Busqueda */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex gap-3 items-center">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 flex gap-3 items-center">
         <input
           type="text"
           placeholder="Buscar por nombre o email..."
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="flex-1 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm"
         />
         {searchInput && (
           <button
@@ -455,7 +455,7 @@ const UsersPage: React.FC = () => {
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.name ? 'border-red-400' : 'border-gray-200'}`}
+                className={`w-full rounded-3xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm ${formErrors.name ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'}`}
                 placeholder="Nombres"
               />
               {formErrors.name && <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>}
@@ -469,7 +469,7 @@ const UsersPage: React.FC = () => {
                 type="text"
                 value={form.last_name}
                 onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.last_name ? 'border-red-400' : 'border-gray-200'}`}
+                className={`w-full rounded-3xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm ${formErrors.last_name ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'}`}
                 placeholder="Apellidos"
               />
               {formErrors.last_name && <p className="text-red-500 text-xs mt-1">{formErrors.last_name}</p>}
@@ -483,7 +483,7 @@ const UsersPage: React.FC = () => {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.email ? 'border-red-400' : 'border-gray-200'}`}
+                className={`w-full rounded-3xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm ${formErrors.email ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'}`}
                 placeholder="correo@ejemplo.com"
               />
               {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
@@ -497,7 +497,7 @@ const UsersPage: React.FC = () => {
                 type="text"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.phone ? 'border-red-400' : 'border-gray-200'}`}
+                className={`w-full rounded-3xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm ${formErrors.phone ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'}`}
                 placeholder="Ej: 3001234567"
               />
               {formErrors.phone && <p className="text-red-500 text-xs mt-1">{formErrors.phone}</p>}
@@ -518,7 +518,7 @@ const UsersPage: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className={`w-full border rounded-lg px-3 py-2 pr-20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.password ? 'border-red-400' : 'border-gray-200'}`}
+                  className={`w-full rounded-3xl border px-4 py-3 pr-20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm ${formErrors.password ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'}`}
                   placeholder="Minimo 6 caracteres"
                 />
                 <button
@@ -544,7 +544,7 @@ const UsersPage: React.FC = () => {
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={form.confirm_password}
                   onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
-                  className={`w-full border rounded-lg px-3 py-2 pr-20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.confirm_password ? 'border-red-400' : 'border-gray-200'}`}
+                  className={`w-full rounded-3xl border px-4 py-3 pr-20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm ${formErrors.confirm_password ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'}`}
                   placeholder="Repite la contrasena"
                 />
                 <button
@@ -566,7 +566,7 @@ const UsersPage: React.FC = () => {
                 id="user-role"
                 value={form.role_id}
                 onChange={(e) => setForm({ ...form, role_id: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.role_id ? 'border-red-400' : 'border-gray-200'}`}
+                className={`w-full rounded-3xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm ${formErrors.role_id ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'}`}
               >
                 <option value="">Seleccionar rol...</option>
                 {roles.map((r) => (
@@ -583,7 +583,7 @@ const UsersPage: React.FC = () => {
                 id="user-gender"
                 value={form.gender_id}
                 onChange={(e) => setForm({ ...form, gender_id: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.gender_id ? 'border-red-400' : 'border-gray-200'}`}
+                className={`w-full rounded-3xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm ${formErrors.gender_id ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'}`}
               >
                 <option value="">Seleccionar género...</option>
                 {genders.map((g) => (

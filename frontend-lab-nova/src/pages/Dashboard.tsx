@@ -43,12 +43,12 @@ const StatCard: React.FC<{
   highlight?: boolean
 }> = ({ title, value, subtitle, color, icon, to, highlight }) => {
   const content = (
-    <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4 hover:shadow-md transition-shadow ${to ? 'cursor-pointer' : ''} ${highlight ? 'ring-2 ring-yellow-300/60 animate-pulse' : ''}`}>
-      <div className={`text-2xl p-3 rounded-xl ${color} shrink-0`}>{icon}</div>
+    <div className={`bg-white rounded-3xl shadow-sm border border-slate-200 p-5 flex items-start gap-4 hover:shadow-lg transition-shadow ${to ? 'cursor-pointer' : ''} ${highlight ? 'ring-2 ring-yellow-300/40' : ''}`}>
+      <div className={`text-2xl p-3 rounded-3xl ${color} shrink-0`}>{icon}</div>
       <div className="min-w-0">
-        <p className="text-sm text-gray-500 truncate">{title}</p>
-        <p className="text-3xl font-bold text-gray-800 mt-0.5">{value}</p>
-        {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
+        <p className="text-sm text-slate-500 truncate">{title}</p>
+        <p className="text-3xl font-semibold text-slate-900 mt-1">{value}</p>
+        {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
       </div>
     </div>
   )
@@ -57,6 +57,16 @@ const StatCard: React.FC<{
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth()
+  const roleName = (user?.role as { name?: string })?.name ?? 'Usuario'
+  const rolePhrase =
+    roleName === 'Super Admin'
+      ? 'Control ejecutivo del sistema y visibilidad completa de reservas, usuarios y equipos.'
+      : roleName === 'Lab Manager'
+        ? 'Administra el laboratorio con datos claros y decisiones rápidas.'
+        : roleName === 'Student'
+          ? 'Revisa tus reservas y mantente al día con el estado de tus solicitudes.'
+          : 'Accede a tu panel con información relevante para tu rol.'
+
   const [stats, setStats] = useState<Stats>({
     totalEquipment: 0,
     availableEquipment: 0,
@@ -118,36 +128,76 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Encabezado */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">
-          Bienvenido, {user?.name ?? 'Usuario'}
-        </h1>
-        <p className="text-gray-500 mt-1 text-sm">
-          {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
-          <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 text-xl">
-              💡
-            </div>
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-blue-900">¿Necesitas orientación rápida?</p>
-              <p className="text-sm text-blue-700 mt-1">
-                Abre la guía rápida para ver los pasos clave en reservas, equipos, reportes y usuarios.
+              <p className="text-sm uppercase tracking-[0.3em] text-slate-400 mb-3">Panel principal</p>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <h1 className="text-3xl font-bold text-slate-900">
+                  Bienvenido, {user?.name ?? 'Usuario'}
+                </h1>
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {roleName}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-slate-500 max-w-2xl">
+                {rolePhrase}
               </p>
+              <p className="mt-3 text-sm text-slate-500">
+                {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={openGuide}
+              className="inline-flex items-center gap-2 rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/10 hover:bg-blue-700 transition"
+            >
+              <span>Guía rápida</span>
+            </button>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Reservas totales</p>
+              <p className="mt-2 text-3xl font-semibold">{stats.totalReservations}</p>
+            </div>
+            <div className="rounded-3xl bg-amber-100/90 p-4 text-slate-950 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Pendientes</p>
+              <p className="mt-2 text-3xl font-semibold">{stats.pendingReservations}</p>
+            </div>
+            <div className="rounded-3xl bg-emerald-100/90 p-4 text-slate-950 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Aprobadas</p>
+              <p className="mt-2 text-3xl font-semibold">{stats.approvedReservations}</p>
             </div>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={openGuide}
-          className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-        >
-          Abrir guía rápida
-        </button>
+
+        <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-950 to-slate-900 p-6 text-white shadow-sm">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Resumen ejecutivo</p>
+          <h2 className="mt-3 text-2xl font-semibold">Estado operativo</h2>
+          <p className="mt-3 text-sm text-slate-300 leading-relaxed">
+            Esta sección muestra el desempeño actual del sistema con los principales indicadores de equipo y reservas.
+          </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-3xl bg-slate-900/90 p-4 border border-slate-800 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Equipos disponibles</p>
+              <p className="mt-3 text-3xl font-semibold text-white">{stats.availableEquipment}</p>
+            </div>
+            <div className="rounded-3xl bg-slate-900/90 p-4 border border-slate-800 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Reservas aprobadas</p>
+              <p className="mt-3 text-3xl font-semibold text-white">{stats.approvedReservations}</p>
+            </div>
+            <div className="rounded-3xl bg-slate-900/90 p-4 border border-slate-800 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Solicitudes pendientes</p>
+              <p className="mt-3 text-3xl font-semibold text-white">{stats.pendingReservations}</p>
+            </div>
+            <div className="rounded-3xl bg-slate-900/90 p-4 border border-slate-800 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Disponibilidad total</p>
+              <p className="mt-3 text-3xl font-semibold text-white">{stats.totalEquipment}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {error && (

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
+import Swal from 'sweetalert2'
 import { reservationService } from '../services/reservationService'
 import { equipmentService } from '../services/equipmentService'
 import { userService } from '../services/userService'
@@ -395,6 +396,21 @@ const ReservationsPage: React.FC = () => {
   }
 
   const handleApprove = async (id: number) => {
+    const result = await Swal.fire({
+      title: 'Aprobar reserva',
+      text: '¿Deseas confirmar esta reserva ahora?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, aprobar',
+      cancelButtonText: 'Cancelar',
+      customClass: {
+        confirmButton: 'bg-blue-600 hover:bg-blue-700 text-white rounded-full px-5 py-2',
+        cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full px-5 py-2',
+      },
+      buttonsStyling: false,
+    })
+    if (!result.isConfirmed) return
+
     try {
       setActionLoading(id)
       await reservationService.approveReservation(id)
@@ -428,6 +444,21 @@ const ReservationsPage: React.FC = () => {
   }
 
   const handleCancel = async (id: number) => {
+    const result = await Swal.fire({
+      title: 'Cancelar reserva',
+      text: 'Esta acción anulará la reserva seleccionada. ¿Deseas continuar?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, cancelar',
+      cancelButtonText: 'No, mantener',
+      customClass: {
+        confirmButton: 'bg-red-600 hover:bg-red-700 text-white rounded-full px-5 py-2',
+        cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full px-5 py-2',
+      },
+      buttonsStyling: false,
+    })
+    if (!result.isConfirmed) return
+
     try {
       setActionLoading(id)
       await reservationService.cancelReservation(id)
@@ -442,6 +473,21 @@ const ReservationsPage: React.FC = () => {
   }
 
   const handleComplete = async (id: number) => {
+    const result = await Swal.fire({
+      title: 'Finalizar reserva',
+      text: '¿Confirmas que este equipo ya fue devuelto y puedes cerrar la reserva?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, finalizar',
+      cancelButtonText: 'No, mantener',
+      customClass: {
+        confirmButton: 'bg-blue-600 hover:bg-blue-700 text-white rounded-full px-5 py-2',
+        cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full px-5 py-2',
+      },
+      buttonsStyling: false,
+    })
+    if (!result.isConfirmed) return
+
     try {
       setActionLoading(id)
       await reservationService.completeReservation(id)
@@ -486,10 +532,10 @@ const ReservationsPage: React.FC = () => {
       <div className="space-y-5">
 
         {/* Encabezado */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">{pageTitle}</h1>
-            <p className="text-gray-400 text-sm mt-0.5">{total} reserva{total !== 1 ? 's' : ''} en total</p>
+            <h1 className="text-2xl font-bold text-slate-900">{pageTitle}</h1>
+            <p className="text-slate-500 text-sm mt-1">{total} reserva{total !== 1 ? 's' : ''} en total</p>
           </div>
           <IfCan permission={{ module: 'reservations', action: 'create' }}>
             <button
@@ -500,7 +546,7 @@ const ReservationsPage: React.FC = () => {
                 setAvailabilityStatus('unknown')
                 setShowModal(true)
               }}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 rounded-3xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-600/10 hover:bg-blue-700 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -511,14 +557,26 @@ const ReservationsPage: React.FC = () => {
         </div>
 
         {pendingNewRequests && perms.canApproveReservation() && (
-          <div className="rounded-3xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-700 shadow-sm">
-            <strong className="font-semibold">Nuevas reservas pendientes</strong> — Revisa las solicitudes recientes y actúa rápido.
+          <div className="rounded-[2rem] border border-blue-100 bg-blue-50 px-5 py-4 text-sm text-slate-800 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-2xl bg-blue-600 text-white">!</span>
+              <div>
+                <p className="font-semibold">Nuevas reservas pendientes</p>
+                <p className="text-slate-600">Revisa las solicitudes recientes y confirma las aprobaciones necesarias.</p>
+              </div>
+            </div>
           </div>
         )}
 
         {ownRecentStatusChanges && (
-          <div className="rounded-3xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 shadow-sm">
-            <strong className="font-semibold">Cambios recientes</strong> — Tu reserva cambió de estado recientemente. Verifica su nueva información abajo.
+          <div className="rounded-[2rem] border border-slate-200 bg-slate-950 px-5 py-4 text-sm text-white shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-2xl bg-slate-100 text-slate-900">i</span>
+              <div>
+                <p className="font-semibold">Cambio reciente</p>
+                <p className="text-slate-300">Tu reserva ha cambiado de estado recientemente; revisa el detalle para estar al día.</p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -528,10 +586,10 @@ const ReservationsPage: React.FC = () => {
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors border ${
                 filterStatus === s
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
+                  : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
               }`}
             >
               {s === 'all' ? 'Todas' : STATUS_LABELS[s]}
@@ -766,8 +824,8 @@ const ReservationsPage: React.FC = () => {
                   <select
                     value={form.user_id}
                     onChange={(e) => setForm({ ...form, user_id: e.target.value })}
-                    className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${
-                      formErrors.user_id ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'
+                    className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors shadow-sm ${
+                      formErrors.user_id ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'
                     }`}
                   >
                     <option value="">Asignar a mí mismo</option>
@@ -790,7 +848,7 @@ const ReservationsPage: React.FC = () => {
                   value={equipmentQuery}
                   onChange={(e) => setEquipmentQuery(e.target.value)}
                   placeholder="Buscar por nombre, categoría o código..."
-                  className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors"
+                  className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors shadow-sm"
                 />
 
                 <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">

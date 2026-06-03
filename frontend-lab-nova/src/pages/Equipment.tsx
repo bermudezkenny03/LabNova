@@ -155,6 +155,7 @@ const EquipmentPage: React.FC = () => {
   const [imageFile, setImageFile]     = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageError, setImageError]   = useState<string | null>(null)
+  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null)
 
   const [deleteId, setDeleteId]       = useState<number | null>(null)
   const [deleting, setDeleting]       = useState(false)
@@ -261,7 +262,7 @@ const EquipmentPage: React.FC = () => {
       code: eq.code ?? '',
       description: eq.description ?? '',
       category_id: eq.category_id ? String(eq.category_id) : '',
-      stock: eq.stock ? String(eq.stock) : '',
+      stock: eq.stock !== undefined && eq.stock !== null ? String(eq.stock) : '',
       status: eq.status,
       is_active: eq.is_active !== false,
     })
@@ -272,6 +273,14 @@ const EquipmentPage: React.FC = () => {
     setImagePreview(img)
     setImageError(null)
     setShowModal(true)
+  }
+
+  const openView = (eq: Equipment) => {
+    setSelectedEquipment(eq)
+  }
+
+  const closeView = () => {
+    setSelectedEquipment(null)
   }
 
   // ── Validation ─────────────────────────────────────────────────────────────
@@ -307,7 +316,7 @@ const EquipmentPage: React.FC = () => {
         code: form.code.trim(),
         description: form.description.trim() || undefined,
         category_id: form.category_id ? Number(form.category_id) : undefined,
-        stock: form.stock ? Number(form.stock) : undefined,
+        stock: form.stock !== '' ? Number(form.stock) : undefined,
         status: form.status,
         is_active: form.is_active,
       }
@@ -415,7 +424,7 @@ const EquipmentPage: React.FC = () => {
   )
 
   const cls = (key: keyof EquipmentForm, base = '') =>
-    `w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${base} ${formErrors[key] ? 'border-red-400' : 'border-gray-200'}`
+    `w-full rounded-3xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm ${base} ${formErrors[key] ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'}`
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -432,7 +441,7 @@ const EquipmentPage: React.FC = () => {
           <IfCan permission={{ module: 'categories', action: 'view' }}>
             <button
               onClick={() => { setCatForm({ name: '', description: '' }); setEditingCatId(null); setCatError(null); setShowCatModal(true) }}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-gray-200"
+              className="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-3xl text-sm font-medium transition-colors border border-slate-200 shadow-sm"
             >
               Categorías
             </button>
@@ -447,6 +456,51 @@ const EquipmentPage: React.FC = () => {
           </IfCan>
         </div>
       </div>
+
+      {selectedEquipment && (
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 grid gap-4 md:grid-cols-[300px_1fr] items-start">
+          <div className="rounded-3xl overflow-hidden bg-slate-50">
+            {getPrimaryImage(selectedEquipment) ? (
+              <img src={getPrimaryImage(selectedEquipment) ?? ''} alt={selectedEquipment.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-72 flex items-center justify-center bg-slate-100 text-slate-400">
+                Sin imagen disponible
+              </div>
+            )}
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">{selectedEquipment.name}</h2>
+                <p className="text-sm text-gray-500">Código: {selectedEquipment.code}</p>
+              </div>
+              <button onClick={closeView} className="text-xs uppercase tracking-wide text-blue-600 hover:text-blue-800">Cerrar</button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-3xl bg-slate-50 p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Categoría</p>
+                <p className="text-sm font-medium text-gray-900">{selectedEquipment.category?.name ?? categories.find((c) => c.id === selectedEquipment.category_id)?.name ?? '—'}</p>
+              </div>
+              <div className="rounded-3xl bg-slate-50 p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Stock</p>
+                <p className="text-sm font-medium text-gray-900">{selectedEquipment.stock ?? '—'}</p>
+              </div>
+              <div className="rounded-3xl bg-slate-50 p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Estado</p>
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${STATUS_COLORS[selectedEquipment.status]}`}>{STATUS_LABELS[selectedEquipment.status]}</span>
+              </div>
+              <div className="rounded-3xl bg-slate-50 p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Activo</p>
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${selectedEquipment.is_active !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{selectedEquipment.is_active !== false ? 'Si' : 'No'}</span>
+              </div>
+            </div>
+            <div className="rounded-3xl bg-slate-50 p-4">
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Descripción</p>
+              <p className="text-sm text-gray-700 leading-relaxed">{selectedEquipment.description ?? 'No hay descripción disponible.'}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Alertas */}
       {error && (
@@ -466,7 +520,7 @@ const EquipmentPage: React.FC = () => {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+            className="flex-1 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm"
           />
           <button onClick={handleSearch} className="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg text-sm transition-colors">
             Buscar
@@ -482,7 +536,7 @@ const EquipmentPage: React.FC = () => {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm"
         >
           <option value="all">Todos los estados</option>
           <option value="available">Disponible</option>
@@ -554,6 +608,16 @@ const EquipmentPage: React.FC = () => {
                       )}
                       {/* Acciones overlay */}
                       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => openView(eq)}
+                          className="w-7 h-7 bg-white rounded-lg shadow flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors"
+                          aria-label="Ver detalles"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
                         <ProtectedButton
                           permission={{ module: 'equipment', action: 'edit' }}
                           onClick={() => openEdit(eq)}
@@ -668,6 +732,12 @@ const EquipmentPage: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-5 py-3 text-right">
+                          <button
+                            onClick={() => openView(eq)}
+                            className="text-slate-600 hover:text-slate-900 text-xs font-medium mr-3"
+                          >
+                            Ver
+                          </button>
                           <ProtectedButton
                             permission={{ module: 'equipment', action: 'edit' }}
                             onClick={() => openEdit(eq)}
@@ -821,13 +891,13 @@ const EquipmentPage: React.FC = () => {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
                   <input type="text" value={catForm.name} onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm"
                     placeholder="Ej: Computadores" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Descripción</label>
                   <input type="text" value={catForm.description} onChange={(e) => setCatForm({ ...catForm, description: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm"
                     placeholder="Descripción opcional" />
                 </div>
               </div>
