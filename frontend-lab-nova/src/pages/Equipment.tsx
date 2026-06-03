@@ -298,7 +298,7 @@ const EquipmentPage: React.FC = () => {
     const errors: Partial<Record<keyof EquipmentForm, string>> = {}
     if (!form.name.trim()) errors.name = 'El nombre es requerido'
     if (!form.code.trim()) errors.code = 'El codigo es requerido'
-    if (!form.category_id) errors.category_id = 'La categoria es requerida'
+    if (!editingId && !form.category_id) errors.category_id = 'La categoria es requerida'
     if (!form.description.trim()) errors.description = 'La descripción es requerida'
     if (form.stock === '' || form.stock === null) errors.stock = 'El stock es requerido'
     else if (isNaN(Number(form.stock))) errors.stock = 'El stock debe ser un numero'
