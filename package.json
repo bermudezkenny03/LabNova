@@ -1,0 +1,8 @@
+{
+  "name": "labnova-root",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "cd frontend-lab-nova && npm ci && npm run build"
+  }
+}
