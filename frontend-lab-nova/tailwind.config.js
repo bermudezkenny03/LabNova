@@ -10,7 +10,13 @@ module.exports = {
         secondary: '#10B981',
         danger: '#EF4444',
       },
+      minWidth: {
+        0: '0',
+      },
     },
   },
   plugins: [],
+  safelist: [
+    'min-w-0',
+  ],
 }

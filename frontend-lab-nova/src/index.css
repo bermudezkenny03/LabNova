@@ -57,3 +57,8 @@ iframe {
   max-width: 100%;
   height: auto;
 }
+
+/* Force responsive fix */
+.min-w-0 {
+  min-width: 0 !important;
+}

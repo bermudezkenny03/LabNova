@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks'
+import { useQuickGuide } from '../context/QuickGuideContext'
 import { IfCan } from '../components/ProtectedFeature'
 import { reservationService } from '../services/reservationService'
 import { reportService } from '../services/reportService'
@@ -39,9 +40,10 @@ const StatCard: React.FC<{
   color: string
   icon: string
   to?: string
-}> = ({ title, value, subtitle, color, icon, to }) => {
+  highlight?: boolean
+}> = ({ title, value, subtitle, color, icon, to, highlight }) => {
   const content = (
-    <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4 hover:shadow-md transition-shadow ${to ? 'cursor-pointer' : ''}`}>
+    <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4 hover:shadow-md transition-shadow ${to ? 'cursor-pointer' : ''} ${highlight ? 'ring-2 ring-yellow-300/60 animate-pulse' : ''}`}>
       <div className={`text-2xl p-3 rounded-xl ${color} shrink-0`}>{icon}</div>
       <div className="min-w-0">
         <p className="text-sm text-gray-500 truncate">{title}</p>
@@ -111,6 +113,8 @@ const Dashboard: React.FC = () => {
     <div className="animate-pulse bg-gray-200 rounded-xl h-24 w-full" />
   )
 
+  const { openGuide } = useQuickGuide()
+
   return (
     <div className="space-y-6">
       {/* Encabezado */}
@@ -121,6 +125,29 @@ const Dashboard: React.FC = () => {
         <p className="text-gray-500 mt-1 text-sm">
           {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 text-xl">
+              💡
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-blue-900">¿Necesitas orientación rápida?</p>
+              <p className="text-sm text-blue-700 mt-1">
+                Abre la guía rápida para ver los pasos clave en reservas, equipos, reportes y usuarios.
+              </p>
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={openGuide}
+          className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+        >
+          Abrir guía rápida
+        </button>
       </div>
 
       {error && (
@@ -158,7 +185,7 @@ const Dashboard: React.FC = () => {
             ) : (
               <>
                 <StatCard title="Total Reservas" value={stats.totalReservations} color="bg-purple-100 text-purple-600" icon="📋" to="/reservations" />
-                <StatCard title="Pendientes" value={stats.pendingReservations} subtitle="Esperando aprobacion" color="bg-yellow-100 text-yellow-600" icon="⏳" to="/reservations" />
+                <StatCard title="Pendientes" value={stats.pendingReservations} subtitle="Esperando aprobacion" color="bg-yellow-100 text-yellow-600" icon="⏳" to="/reservations" highlight={stats.pendingReservations > 0} />
                 <StatCard title="Aprobadas" value={stats.approvedReservations} color="bg-green-100 text-green-600" icon="📅" to="/reservations" />
               </>
             )}

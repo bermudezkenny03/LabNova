@@ -112,8 +112,13 @@ const getEquipmentImage = (eq: Equipment): string | null =>
 
 // ─── Small components ─────────────────────────────────────────────────────────
 
-const StatusBadge: React.FC<{ status: Reservation['status'] }> = ({ status }) => (
-  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLES[status]}`}>
+const isReservationRecentUpdate = (reservation: Reservation) => {
+  const updatedAt = reservation.updated_at ?? reservation.created_at
+  return Date.now() - new Date(updatedAt).getTime() < 1000 * 60 * 15
+}
+
+const StatusBadge: React.FC<{ status: Reservation['status']; highlight?: boolean }> = ({ status, highlight }) => (
+  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLES[status]} ${highlight ? 'ring-1 ring-blue-300/70 shadow-sm animate-pulse' : ''}`}>
     <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[status]}`} />
     {STATUS_LABELS[status]}
   </span>
@@ -466,6 +471,14 @@ const ReservationsPage: React.FC = () => {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
+  const pendingNewRequests = reservations.some(
+    (r) => r.status === 'pending' && Date.now() - new Date(r.created_at).getTime() < 1000 * 60 * 15
+  )
+
+  const ownRecentStatusChanges = user
+    ? reservations.some((r) => r.user_id === user.id && isReservationRecentUpdate(r) && r.status !== 'pending')
+    : false
+
   return (
     <>
       <ToastContainer toasts={toast.toasts} onRemove={toast.remove} />
@@ -496,6 +509,18 @@ const ReservationsPage: React.FC = () => {
             </button>
           </IfCan>
         </div>
+
+        {pendingNewRequests && perms.canApproveReservation() && (
+          <div className="rounded-3xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-700 shadow-sm">
+            <strong className="font-semibold">Nuevas reservas pendientes</strong> — Revisa las solicitudes recientes y actúa rápido.
+          </div>
+        )}
+
+        {ownRecentStatusChanges && (
+          <div className="rounded-3xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 shadow-sm">
+            <strong className="font-semibold">Cambios recientes</strong> — Tu reserva cambió de estado recientemente. Verifica su nueva información abajo.
+          </div>
+        )}
 
         {/* Filtros */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-wrap gap-2">
@@ -555,8 +580,11 @@ const ReservationsPage: React.FC = () => {
                 <tbody className="divide-y divide-gray-50">
                   {filtered.map((r) => {
                     const eqImg = r.equipment ? getEquipmentImage(r.equipment) : null
+                    const updatedRecently = isReservationRecentUpdate(r)
+                    const isNewRequest = r.status === 'pending' && Date.now() - new Date(r.created_at).getTime() < 1000 * 60 * 15
+                    const highlightRow = user && r.user_id === user.id && updatedRecently && r.status !== 'pending'
                     return (
-                      <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={r.id} className={`transition-colors ${highlightRow ? 'bg-blue-50/60 animate-pulse' : 'hover:bg-gray-50'}`}>
                         <td className="px-5 py-3.5 text-gray-400 font-mono text-xs">#{r.id}</td>
 
                         {!isStudent && (
@@ -590,8 +618,13 @@ const ReservationsPage: React.FC = () => {
                         <td className="px-5 py-3.5 text-gray-500 text-xs whitespace-nowrap">
                           {fmtTime(r.start_time)} – {fmtTime(r.end_time)}
                         </td>
-                        <td className="px-5 py-3.5">
-                          <StatusBadge status={r.status} />
+                        <td className="px-5 py-3.5 flex items-center gap-2">
+                          <StatusBadge status={r.status} highlight={updatedRecently} />
+                          {isNewRequest && (
+                            <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold px-2 py-1">
+                              Nuevo
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-2">

@@ -157,7 +157,7 @@ const Login: React.FC = () => {
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Correo electrónico
               </label>
               <div className="relative">
@@ -167,6 +167,7 @@ const Login: React.FC = () => {
                   </svg>
                 </div>
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={e => { setEmail(e.target.value); setEmailError('') }}
@@ -180,7 +181,7 @@ const Login: React.FC = () => {
 
             {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Contraseña
               </label>
               <div className="relative">
@@ -190,6 +191,7 @@ const Login: React.FC = () => {
                   </svg>
                 </div>
                 <input
+                  id="login-password"
                   type={showPwd ? 'text' : 'password'}
                   value={password}
                   onChange={e => { setPassword(e.target.value); setPwdError('') }}
@@ -201,7 +203,6 @@ const Login: React.FC = () => {
                   type="button"
                   onClick={() => setShowPwd(!showPwd)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
-                  tabIndex={-1}
                 >
                   {showPwd ? (
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

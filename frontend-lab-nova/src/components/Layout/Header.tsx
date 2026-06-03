@@ -4,9 +4,10 @@ import { useAuth } from '../../hooks'
 
 interface HeaderProps {
   onToggleSidebar: () => void
+  onOpenGuide: () => void
 }
 
-const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
+const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenGuide }) => {
   const navigate    = useNavigate()
   const { user }    = useAuth()
 
@@ -74,6 +75,22 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
         </Link>
 
         {/* Divider */}
+        <div className="hidden sm:block w-px h-6 bg-gray-200" />
+
+        {/* Quick guide */}
+        <button
+          type="button"
+          onClick={onOpenGuide}
+          title="Abrir guía rápida"
+          className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-slate-600 hover:bg-slate-200 transition"
+          aria-label="Abrir guía rápida"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 18h.01M16 10h.01M12 6a8 8 0 100 16 8 8 0 000-16z" />
+          </svg>
+          <span className="hidden sm:inline ml-2 text-sm font-medium">Ayuda</span>
+        </button>
+
         <div className="hidden sm:block w-px h-6 bg-gray-200" />
 
         {/* Logout */}

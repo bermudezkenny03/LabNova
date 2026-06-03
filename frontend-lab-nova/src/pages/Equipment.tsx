@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { equipmentService } from '../services/equipmentService'
 import { Equipment, Category } from '../types'
 import { Modal } from '../components/common/Modal'
+import { ToastContainer } from '../components/common/Toast'
+import { useToast } from '../hooks/useToast'
 import { ProtectedButton, IfCan } from '../components/ProtectedFeature'
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -61,7 +63,16 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({ preview, onFile, label = 
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={label}
       onClick={() => inputRef.current?.click()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          inputRef.current?.click()
+        }
+      }}
       onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
@@ -71,7 +82,7 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({ preview, onFile, label = 
     >
       {preview ? (
         <>
-          <img src={preview} alt="preview" className="w-full h-full object-cover" />
+          <img src={preview} alt="Vista previa del equipo" loading="lazy" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
             <p className="text-white text-xs font-medium">Haz clic o arrastra para cambiar</p>
           </div>
@@ -127,7 +138,7 @@ const EquipmentPage: React.FC = () => {
   const [loading, setLoading]         = useState(true)
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState<string | null>(null)
-  const [successMsg, setSuccessMsg]   = useState<string | null>(null)
+  const toast = useToast()
 
   const [total, setTotal]             = useState(0)
   const [filterStatus, setFilterStatus] = useState('all')
@@ -157,8 +168,7 @@ const EquipmentPage: React.FC = () => {
   const [catError, setCatError]           = useState<string | null>(null)
 
   const showSuccess = (msg: string) => {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3000)
+    toast.success(msg)
   }
 
   // ── Load data ──────────────────────────────────────────────────────────────
@@ -346,7 +356,7 @@ const EquipmentPage: React.FC = () => {
       setDeleting(true)
       await equipmentService.deleteEquipment(deleteId)
       setDeleteId(null)
-      showSuccess('Equipo eliminado correctamente.')
+      toast.success('Equipo eliminado correctamente.')
       loadEquipment()
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } }
@@ -373,7 +383,7 @@ const EquipmentPage: React.FC = () => {
       setCatForm({ name: '', description: '' })
       setEditingCatId(null)
       loadCategories()
-      showSuccess(editingCatId ? 'Categoría actualizada.' : 'Categoría creada.')
+      toast.success(editingCatId ? 'Categoría actualizada.' : 'Categoría creada.')
     } catch {
       setCatError('No se pudo guardar la categoría.')
     } finally {
@@ -386,7 +396,7 @@ const EquipmentPage: React.FC = () => {
       setDeletingCatId(id)
       await equipmentService.deleteCategory(id)
       loadCategories()
-      showSuccess('Categoría eliminada.')
+      toast.success('Categoría eliminada.')
     } catch {
       setCatError('No se pudo eliminar. Verifica que no tenga equipos asociados.')
     } finally {
@@ -443,11 +453,6 @@ const EquipmentPage: React.FC = () => {
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex justify-between">
           {error}
           <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-4">&times;</button>
-        </div>
-      )}
-      {successMsg && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-          {successMsg}
         </div>
       )}
 
@@ -538,7 +543,7 @@ const EquipmentPage: React.FC = () => {
                     {/* Imagen */}
                     <div className="relative h-40 bg-gray-50">
                       {img ? (
-                        <img src={img} alt={eq.name} className="w-full h-full object-cover" />
+                        <img src={img} alt={eq.name} loading="lazy" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <svg className="w-14 h-14 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -633,7 +638,7 @@ const EquipmentPage: React.FC = () => {
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-lg bg-gray-100 overflow-hidden shrink-0">
                               {img
-                                ? <img src={img} alt={eq.name} className="w-full h-full object-cover" />
+                                ? <img src={img} alt={eq.name} loading="lazy" className="w-full h-full object-cover" />
                                 : <div className="w-full h-full flex items-center justify-center">
                                     <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
@@ -909,6 +914,7 @@ const EquipmentPage: React.FC = () => {
           </div>
         </Modal>
       )}
+      <ToastContainer toasts={toast.toasts} onRemove={toast.remove} />
     </div>
   )
 }

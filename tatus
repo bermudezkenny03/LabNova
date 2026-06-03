@@ -1,0 +1,152 @@
+[1mdiff --git a/frontend-lab-nova/index.html b/frontend-lab-nova/index.html[m
+[1mindex 25c68f2..cb477cd 100644[m
+[1m--- a/frontend-lab-nova/index.html[m
+[1m+++ b/frontend-lab-nova/index.html[m
+[36m@@ -4,6 +4,13 @@[m
+     <meta charset="UTF-8" />[m
+     <link rel="icon" type="image/svg+xml" href="/vite.svg" />[m
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />[m
+[32m+[m[32m    <meta name="description" content="Lab Nova es un sistema de reservas de equipos y laboratorios con control de accesos por roles, reportes PDF y gestión centralizada." />[m
+[32m+[m[32m    <meta property="og:title" content="Lab Nova - Sistema de Reservas" />[m
+[32m+[m[32m    <meta property="og:description" content="Gestiona reservas, equipos y usuarios con un panel seguro y responsivo para laboratorios." />[m
+[32m+[m[32m    <meta property="og:type" content="website" />[m
+[32m+[m[32m    <meta property="og:url" content="https://labnova.vercel.app" />[m
+[32m+[m[32m    <meta property="og:image" content="/assets/og-image.png" />[m
+[32m+[m[32m    <meta name="theme-color" content="#2563EB" />[m
+     <title>Lab Nova - Sistema de Reservas</title>[m
+   </head>[m
+   <body>[m
+[1mdiff --git a/frontend-lab-nova/src/components/Layout/Header.tsx b/frontend-lab-nova/src/components/Layout/Header.tsx[m
+[1mindex 868bb6a..4ccbb21 100644[m
+[1m--- a/frontend-lab-nova/src/components/Layout/Header.tsx[m
+[1m+++ b/frontend-lab-nova/src/components/Layout/Header.tsx[m
+[36m@@ -4,9 +4,10 @@[m [mimport { useAuth } from '../../hooks'[m
+ [m
+ interface HeaderProps {[m
+   onToggleSidebar: () => void[m
+[32m+[m[32m  onOpenGuide: () => void[m
+ }[m
+ [m
+[31m-const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {[m
+[32m+[m[32mconst Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenGuide }) => {[m
+   const navigate    = useNavigate()[m
+   const { user }    = useAuth()[m
+ [m
+[36m@@ -76,6 +77,22 @@[m [mconst Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {[m
+         {/* Divider */}[m
+         <div className="hidden sm:block w-px h-6 bg-gray-200" />[m
+ [m
+[32m+[m[32m        {/* Quick guide */}[m
+[32m+[m[32m        <button[m
+[32m+[m[32m          type="button"[m
+[32m+[m[32m          onClick={onOpenGuide}[m
+[32m+[m[32m          title="Abrir guía rápida"[m
+[32m+[m[32m          className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-slate-600 hover:bg-slate-200 transition"[m
+[32m+[m[32m          aria-label="Abrir guía rápida"[m
+[32m+[m[32m        >[m
+[32m+[m[32m          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>[m
+[32m+[m[32m            <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 18h.01M16 10h.01M12 6a8 8 0 100 16 8 8 0 000-16z" />[m
+[32m+[m[32m          </svg>[m
+[32m+[m[32m          <span className="hidden sm:inline ml-2 text-sm font-medium">Ayuda</span>[m
+[32m+[m[32m        </button>[m
+[32m+[m
+[32m+[m[32m        <div className="hidden sm:block w-px h-6 bg-gray-200" />[m
+[32m+[m
+         {/* Logout */}[m
+         <button[m
+           onClick={handleLogout}[m
+[1mdiff --git a/frontend-lab-nova/src/components/Layout/Layout.tsx b/frontend-lab-nova/src/components/Layout/Layout.tsx[m
+[1mindex 966b58f..7b01d55 100644[m
+[1m--- a/frontend-lab-nova/src/components/Layout/Layout.tsx[m
+[1m+++ b/frontend-lab-nova/src/components/Layout/Layout.tsx[m
+[36m@@ -1,13 +1,17 @@[m
+[31m-import { Outlet, useNavigate } from 'react-router-dom'[m
+[32m+[m[32mimport { Outlet, useNavigate, useLocation } from 'react-router-dom'[m
+ import Header from './Header'[m
+ import Sidebar from './Sidebar'[m
+ import { useAuth } from '../../hooks'[m
+ import { useEffect, useState } from 'react'[m
+[32m+[m[32mimport { QuickGuide } from '../common/QuickGuide'[m
+[32m+[m[32mimport { QuickGuideProvider } from '../../context/QuickGuideContext'[m
+ [m
+ export default function Layout() {[m
+   const [sidebarOpen, setSidebarOpen] = useState(false)[m
+[32m+[m[32m  const [guideOpen, setGuideOpen] = useState(false)[m
+   const { isAuthenticated, isLoading } = useAuth()[m
+   const navigate = useNavigate()[m
+[32m+[m[32m  const location = useLocation()[m
+ [m
+   useEffect(() => {[m
+     if (!isLoading && !isAuthenticated) {[m
+[36m@@ -27,16 +31,22 @@[m [mexport default function Layout() {[m
+   }[m
+ [m
+   return ([m
+[31m-    <div className="flex min-h-screen bg-gray-100 text-sm sm:text-base">[m
+[31m-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />[m
+[31m-      <div className="flex-1 flex flex-col overflow-hidden">[m
+[31m-        <Header onToggleSidebar={() => setSidebarOpen(open => !open)} />[m
+[31m-        <main className="flex-1 overflow-auto min-w-0">[m
+[31m-          <div className="container mx-auto p-4 sm:p-6 lg:p-8">[m
+[31m-            <Outlet />[m
+[31m-          </div>[m
+[31m-        </main>[m
+[32m+[m[32m    <QuickGuideProvider onOpenGuide={() => setGuideOpen(true)}>[m
+[32m+[m[32m      <div className="flex min-h-screen bg-gray-100 text-sm sm:text-base">[m
+[32m+[m[32m        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />[m
+[32m+[m[32m        <div className="flex-1 flex flex-col overflow-hidden">[m
+[32m+[m[32m          <Header[m
+[32m+[m[32m            onToggleSidebar={() => setSidebarOpen(open => !open)}[m
+[32m+[m[32m            onOpenGuide={() => setGuideOpen(true)}[m
+[32m+[m[32m          />[m
+[32m+[m[32m          <main className="flex-1 overflow-auto min-w-0">[m
+[32m+[m[32m            <div className="container mx-auto p-4 sm:p-6 lg:p-8">[m
+[32m+[m[32m              <Outlet />[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          </main>[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m        <QuickGuide open={guideOpen} onClose={() => setGuideOpen(false)} currentPath={location.pathname} />[m
+       </div>[m
+[31m-    </div>[m
+[32m+[m[32m    </QuickGuideProvider>[m
+   )[m
+ }[m
+[1mdiff --git a/frontend-lab-nova/src/components/Layout/Sidebar.tsx b/frontend-lab-nova/src/components/Layout/Sidebar.tsx[m
+[1mindex 51692fe..83be57c 100644[m
+[1m--- a/frontend-lab-nova/src/components/Layout/Sidebar.tsx[m
+[1m+++ b/frontend-lab-nova/src/components/Layout/Sidebar.tsx[m
+[36m@@ -1,7 +1,8 @@[m
+[31m-import React from 'react'[m
+[32m+[m[32mimport React, { useEffect, useState } from 'react'[m
+ import { Link, useLocation } from 'react-router-dom'[m
+ import { usePermissions } from '../../hooks/usePermissions'[m
+ import { useAuth } from '../../hooks'[m
+[32m+[m[32mimport { reportService } from '../../services/reportService'[m
+ [m
+ // ─── SVG icons (Heroicons outline) ───────────────────────────────────────────[m
+ [m
+[36m@@ -55,13 +56,34 @@[m [mconst Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {[m
+   const location = useLocation()[m
+   const perms    = usePermissions()[m
+   const { user } = useAuth()[m
+[32m+[m[32m  const [pendingReservations, setPendingReservations] = useState(0)[m
+[32m+[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    if (!perms.canApproveReservation()) {[m
+[32m+[m[32m      return[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    reportService[m
+[32m+[m[32m      .getReservationStats()[m
+[32m+[m[32m      .then((stats) => {[m
+[32m+[m[32m        setPendingReservations(stats.pending ?? 0)[m
+[32m+[m[32m      })[m
+[32m+[m[32m      .catch(() => {[m
+[32m+[m[32m        setPendingReservations(0)[m
+[32m+[m[32m      })[m
+[32m+[m[32m  }, [perms])[m
+ [m
+   const navItems: NavItem[] = [[m
+     { path: '/',             label: 'Dashboard', icon: <IconDashboard />,     visible: true },[m
+     { path: '/equipment',   label: 'Catálogo',   icon: <IconEquipment />,     visible: perms.canView('equipment') },[m
+[31m-    { path: '/reservations',label: 'Reservas',   icon: <IconReservations />,  visi

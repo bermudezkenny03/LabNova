@@ -3,6 +3,8 @@ import Swal from 'sweetalert2'
 import { userService } from '../services/userService'
 import { User } from '../types'
 import { Modal } from '../components/common/Modal'
+import { ToastContainer } from '../components/common/Toast'
+import { useToast } from '../hooks/useToast'
 import { usePermissions } from '../hooks/usePermissions'
 import { useAuth } from '../hooks'
 import { ProtectedButton, IfCan } from '../components/ProtectedFeature'
@@ -68,7 +70,7 @@ const UsersPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const toast = useToast()
 
   const [total, setTotal] = useState(0)
   const [searchInput, setSearchInput] = useState('')
@@ -84,8 +86,7 @@ const UsersPage: React.FC = () => {
   const [deleting, setDeleting] = useState(false)
 
   const showSuccess = (msg: string) => {
-    setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(null), 3000)
+    toast.success(msg)
   }
 
   const loadUsers = useCallback(async () => {
@@ -307,11 +308,7 @@ const UsersPage: React.FC = () => {
           <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-4">&times;</button>
         </div>
       )}
-      {successMsg && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-          {successMsg}
-        </div>
-      )}
+      <ToastContainer toasts={toast.toasts} onRemove={toast.remove} />
 
       {/* Busqueda */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex gap-3 items-center">
@@ -452,8 +449,9 @@ const UsersPage: React.FC = () => {
             </div>
             {/* Nombre */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+              <label htmlFor="user-name" className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
               <input
+                id="user-name"
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -465,8 +463,9 @@ const UsersPage: React.FC = () => {
 
             {/* Apellido */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Apellido *</label>
+              <label htmlFor="user-last-name" className="block text-sm font-medium text-gray-700 mb-1">Apellido *</label>
               <input
+                id="user-last-name"
                 type="text"
                 value={form.last_name}
                 onChange={(e) => setForm({ ...form, last_name: e.target.value })}
@@ -478,8 +477,9 @@ const UsersPage: React.FC = () => {
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+              <label htmlFor="user-email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
               <input
+                id="user-email"
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -491,8 +491,9 @@ const UsersPage: React.FC = () => {
 
             {/* Telefono */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Telefono</label>
+              <label htmlFor="user-phone" className="block text-sm font-medium text-gray-700 mb-1">Telefono</label>
               <input
+                id="user-phone"
                 type="text"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
@@ -508,11 +509,12 @@ const UsersPage: React.FC = () => {
 
             {/* Contrasena */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="user-password" className="block text-sm font-medium text-gray-700 mb-1">
                 Contrasena {editingId ? '(dejar vacio para no cambiar)' : '*'}
               </label>
               <div className="relative">
                 <input
+                  id="user-password"
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -533,11 +535,12 @@ const UsersPage: React.FC = () => {
 
             {/* Confirmar Contrasena */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="user-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
                 Confirmar contrasena {editingId ? '(si cambia)' : '*'}
               </label>
               <div className="relative">
                 <input
+                  id="user-confirm-password"
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={form.confirm_password}
                   onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
@@ -558,8 +561,9 @@ const UsersPage: React.FC = () => {
 
             {/* Rol */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Rol *</label>
+              <label htmlFor="user-role" className="block text-sm font-medium text-gray-700 mb-1">Rol *</label>
               <select
+                id="user-role"
                 value={form.role_id}
                 onChange={(e) => setForm({ ...form, role_id: e.target.value })}
                 className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.role_id ? 'border-red-400' : 'border-gray-200'}`}
@@ -574,8 +578,9 @@ const UsersPage: React.FC = () => {
 
             {/* Género */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Género *</label>
+              <label htmlFor="user-gender" className="block text-sm font-medium text-gray-700 mb-1">Género *</label>
               <select
+                id="user-gender"
                 value={form.gender_id}
                 onChange={(e) => setForm({ ...form, gender_id: e.target.value })}
                 className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${formErrors.gender_id ? 'border-red-400' : 'border-gray-200'}`}

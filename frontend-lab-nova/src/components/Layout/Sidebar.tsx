@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../hooks'
+import { reportService } from '../../services/reportService'
 
 // ─── SVG icons (Heroicons outline) ───────────────────────────────────────────
 
@@ -55,13 +56,34 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation()
   const perms    = usePermissions()
   const { user } = useAuth()
+  const [pendingReservations, setPendingReservations] = useState(0)
+
+  useEffect(() => {
+    if (!perms.canApproveReservation()) {
+      return
+    }
+
+    reportService
+      .getReservationStats()
+      .then((stats) => {
+        setPendingReservations(stats.pending ?? 0)
+      })
+      .catch(() => {
+        setPendingReservations(0)
+      })
+  }, [perms])
 
   const navItems: NavItem[] = [
     { path: '/',             label: 'Dashboard', icon: <IconDashboard />,     visible: true },
     { path: '/equipment',   label: 'Catálogo',   icon: <IconEquipment />,     visible: perms.canView('equipment') },
-    { path: '/reservations',label: 'Reservas',   icon: <IconReservations />,  visible: perms.canView('reservations') },
-    { path: '/reports',     label: 'Reportes',   icon: <IconReports />,       visible: perms.canView('reports') },
-    { path: '/users',       label: 'Usuarios',   icon: <IconUsers />,         visible: perms.canView('users') },
+    {
+      path: '/reservations',
+      label: 'Reservas',
+      icon: <IconReservations />,
+      visible: perms.canView('reservations'),
+    },
+    { path: '/reports',     label: 'Reportes', icon: <IconReports />,       visible: perms.canView('reports') },
+    { path: '/users',       label: 'Usuarios', icon: <IconUsers />,         visible: perms.canView('users') },
   ]
 
   const visibleItems = navItems.filter(item => item.visible)
@@ -105,6 +127,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </p>
           {visibleItems.map(item => {
             const active = location.pathname === item.path
+            const showPendingBadge = item.path === '/reservations' && pendingReservations > 0
             return (
               <Link
                 key={item.path}
@@ -123,6 +146,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   {item.icon}
                 </span>
                 <span className="truncate">{item.label}</span>
+                {showPendingBadge && (
+                  <span className="ml-auto flex items-center gap-2">
+                    <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shadow-lg shadow-emerald-500/30" />
+                    <span className="text-[11px] font-semibold tracking-wide uppercase text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                      New
+                    </span>
+                  </span>
+                )}
               </Link>
             )
           })}
