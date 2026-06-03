@@ -247,6 +247,12 @@ const EquipmentPage: React.FC = () => {
     setImageError(null)
   }
 
+  // ── Status-Active mapping ────────────────────────────────────────────────────
+  // Lógica: disponible=true, mantenimiento=false, fuera de servicio=false
+  const getActiveFromStatus = (status: string): boolean => {
+    return status === 'disponible'
+  }
+
   // ── Modal open helpers ─────────────────────────────────────────────────────
 
   const openCreate = () => {
@@ -259,6 +265,7 @@ const EquipmentPage: React.FC = () => {
 
   const openEdit = (eq: Equipment) => {
     setEditingId(eq.id)
+    const isActive = getActiveFromStatus(eq.status)
     setForm({
       name: eq.name,
       code: eq.code ?? '',
@@ -266,7 +273,7 @@ const EquipmentPage: React.FC = () => {
       category_id: eq.category_id ? String(eq.category_id) : '',
       stock: eq.stock !== undefined && eq.stock !== null ? String(eq.stock) : '',
       status: eq.status,
-      is_active: eq.is_active !== false,
+      is_active: isActive,
     })
     setFormErrors({})
     // Mostrar imagen actual
@@ -291,9 +298,9 @@ const EquipmentPage: React.FC = () => {
     const errors: Partial<Record<keyof EquipmentForm, string>> = {}
     if (!form.name.trim()) errors.name = 'El nombre es requerido'
     if (!form.code.trim()) errors.code = 'El codigo es requerido'
-    if (!editingId && !form.category_id) errors.category_id = 'La categoria es requerida'
+    if (!form.category_id) errors.category_id = 'La categoria es requerida'
     if (!form.description.trim()) errors.description = 'La descripción es requerida'
-    if (!form.stock.trim()) errors.stock = 'El stock es requerido'
+    if (form.stock === '' || form.stock === null) errors.stock = 'El stock es requerido'
     else if (isNaN(Number(form.stock))) errors.stock = 'El stock debe ser un numero'
     else if (Number(form.stock) < 0) errors.stock = 'El stock no puede ser negativo'
     if (!form.status) errors.status = 'El estado es requerido'
@@ -313,6 +320,7 @@ const EquipmentPage: React.FC = () => {
     if (!validate()) return
     try {
       setSaving(true)
+      const isActive = getActiveFromStatus(form.status)
       const payload: Partial<Equipment> = {
         name: form.name.trim(),
         code: form.code.trim(),
@@ -320,7 +328,7 @@ const EquipmentPage: React.FC = () => {
         category_id: form.category_id ? Number(form.category_id) : undefined,
         stock: form.stock !== '' ? Number(form.stock) : undefined,
         status: form.status,
-        is_active: form.is_active,
+        is_active: isActive,
       }
 
       let saved: Equipment
