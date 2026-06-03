@@ -14,7 +14,7 @@ class EquipmentUpdateRequest extends FormRequest
 
     public function rules(): array
     {
-        $id = $this->route('id');
+        $id = $this->route('id') ?? $this->route('equipment');
 
         return [
             'category_id' => ['sometimes', 'nullable', 'exists:categories,id'],

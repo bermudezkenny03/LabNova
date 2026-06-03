@@ -247,12 +247,6 @@ const EquipmentPage: React.FC = () => {
     setImageError(null)
   }
 
-  // ── Status-Active mapping ────────────────────────────────────────────────────
-  // Lógica: disponible=true, mantenimiento=false, fuera de servicio=false
-  const getActiveFromStatus = (status: string): boolean => {
-    return status === 'disponible'
-  }
-
   // ── Modal open helpers ─────────────────────────────────────────────────────
 
   const openCreate = () => {
@@ -265,7 +259,6 @@ const EquipmentPage: React.FC = () => {
 
   const openEdit = (eq: Equipment) => {
     setEditingId(eq.id)
-    const isActive = getActiveFromStatus(eq.status)
     setForm({
       name: eq.name,
       code: eq.code ?? '',
@@ -273,7 +266,7 @@ const EquipmentPage: React.FC = () => {
       category_id: eq.category_id ? String(eq.category_id) : '',
       stock: eq.stock !== undefined && eq.stock !== null ? String(eq.stock) : '',
       status: eq.status,
-      is_active: isActive,
+      is_active: eq.is_active !== false,
     })
     setFormErrors({})
     // Mostrar imagen actual
@@ -320,7 +313,6 @@ const EquipmentPage: React.FC = () => {
     if (!validate()) return
     try {
       setSaving(true)
-      const isActive = getActiveFromStatus(form.status)
       const payload: Partial<Equipment> = {
         name: form.name.trim(),
         code: form.code.trim(),
@@ -328,7 +320,7 @@ const EquipmentPage: React.FC = () => {
         category_id: form.category_id ? Number(form.category_id) : undefined,
         stock: form.stock !== '' ? Number(form.stock) : undefined,
         status: form.status,
-        is_active: isActive,
+        is_active: form.is_active,
       }
 
       let saved: Equipment
